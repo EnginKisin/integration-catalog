@@ -1,0 +1,66 @@
+package com.company.integration_catalog.model.entity;
+
+import com.company.integration_catalog.model.enums.AuthType;
+import com.company.integration_catalog.model.enums.ConfigTarget;
+import com.company.integration_catalog.model.enums.EnvironmentType;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.Map;
+
+@Entity
+@Table(name = "environment_configs")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EnvironmentConfig extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Hangi entegrasyona ait olduğu bağı
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "integration_id", nullable = false)
+    private Integration integration;
+
+    // DESTINATION mı MIDDLEWARE mi?
+    @Enumerated(EnumType.STRING)
+    @Column(name = "config_target", nullable = false)
+    private ConfigTarget configTarget;
+
+    // DEV, TEST, PROD
+    @Enumerated(EnumType.STRING)
+    @Column(name = "environment_type", nullable = false)
+    private EnvironmentType environmentType;
+
+    @Column(name = "url", nullable = false, length = 500)
+    private String url;
+
+    @Column(name = "timeout_ms")
+    private Integer timeoutMs;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_type", nullable = false)
+    private AuthType authType;
+
+    /**
+     * Dinamik Auth Verileri (Client-ID, Secret, API Key vb.)
+     * PostgreSQL tarafında jsonb olarak saklanır.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "auth_credentials", columnDefinition = "jsonb")
+    private Map<String, Object> authCredentials;
+
+    // --- Middleware'e Özel Alanlar (Eğer configTarget == MIDDLEWARE ise doldurulacak) ---
+    
+    @Column(name = "retry_count")
+    private Integer retryCount;
+
+    @Column(name = "retry_interval_ms")
+    private Integer retryIntervalMs;
+}
