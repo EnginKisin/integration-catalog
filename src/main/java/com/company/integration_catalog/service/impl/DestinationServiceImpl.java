@@ -1,6 +1,7 @@
 package com.company.integration_catalog.service.impl;
 
-import com.company.integration_catalog.dto.LookUpDTO;
+import com.company.integration_catalog.dto.destination.DestinationRequestDTO;
+import com.company.integration_catalog.dto.destination.DestinationResponseDTO;
 import com.company.integration_catalog.model.entity.Destination;
 import com.company.integration_catalog.repository.DestinationRepository;
 import com.company.integration_catalog.service.DestinationService;
@@ -19,20 +20,21 @@ public class DestinationServiceImpl implements DestinationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<LookUpDTO.Response> getAllDestinations() {
+    public List<DestinationResponseDTO> getAllDestinations() {
         return destinationRepository.findAll().stream()
-                .map(source -> LookUpDTO.Response.builder()
+                .map(source -> DestinationResponseDTO.builder()
                         .id(source.getId())
                         .name(source.getName())
+                        .description(source.getDescription())
                         .build())
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public LookUpDTO.Response createDestination(LookUpDTO.Request request) {
-        Destination source = Destination.builder().name(request.getName()).build();
+    public DestinationResponseDTO createDestination(DestinationRequestDTO request) {
+        Destination source = Destination.builder().name(request.getName()).description(request.getDescription()).build();
         Destination saved = destinationRepository.save(source);
-        return LookUpDTO.Response.builder().id(saved.getId()).name(saved.getName()).build();
+        return DestinationResponseDTO.builder().id(saved.getId()).name(saved.getName()).description(saved.getDescription()).build();
     }
 }

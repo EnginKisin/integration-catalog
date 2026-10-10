@@ -1,7 +1,8 @@
 package com.company.integration_catalog.service.impl;
 
-import com.company.integration_catalog.dto.EnvironmentConfigDTO;
-import com.company.integration_catalog.dto.IntegrationDTO;
+import com.company.integration_catalog.dto.environment_config.EnvironmentConfigRequestDTO;
+import com.company.integration_catalog.dto.integration.IntegrationRequestDTO;
+import com.company.integration_catalog.dto.integration.IntegrationResponseDTO;
 import com.company.integration_catalog.mapper.IntegrationMapper;
 import com.company.integration_catalog.model.entity.Destination;
 import com.company.integration_catalog.model.entity.EnvironmentConfig;
@@ -31,7 +32,7 @@ public class IntegrationServiceImpl implements IntegrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<IntegrationDTO.Response> getAllIntegrations(String keyword) {
+    public List<IntegrationResponseDTO> getAllIntegrations(String keyword) {
         List<Integration> integrations = (keyword != null && !keyword.trim().isEmpty())
                 ? integrationRepository.searchIntegrations(keyword)
                 : integrationRepository.findAll();
@@ -43,7 +44,7 @@ public class IntegrationServiceImpl implements IntegrationService {
 
     @Override
     @Transactional(readOnly = true)
-    public IntegrationDTO.Response getIntegrationById(Long id) {
+    public IntegrationResponseDTO getIntegrationById(Long id) {
         Integration integration = integrationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
         return integrationMapper.toResponse(integration);
@@ -51,7 +52,7 @@ public class IntegrationServiceImpl implements IntegrationService {
 
     @Override
     @Transactional
-    public IntegrationDTO.Response createIntegration(IntegrationDTO.Request request) {
+    public IntegrationResponseDTO createIntegration(IntegrationRequestDTO request) {
         Integration integration = integrationMapper.toEntity(request);
         Integration savedIntegration = integrationRepository.save(integration);
         return integrationMapper.toResponse(savedIntegration);
@@ -59,7 +60,7 @@ public class IntegrationServiceImpl implements IntegrationService {
 
     @Override
     @Transactional
-    public IntegrationDTO.Response updateIntegration(Long id, IntegrationDTO.Request request) {
+    public IntegrationResponseDTO updateIntegration(Long id, IntegrationRequestDTO request) {
         Integration existingIntegration = integrationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
 
@@ -81,7 +82,7 @@ public class IntegrationServiceImpl implements IntegrationService {
 
     @Override
     @Transactional
-    public void saveEnvironmentConfigs(Long integrationId, List<EnvironmentConfigDTO.Request> configRequests) {
+    public void saveEnvironmentConfigs(Long integrationId, List<EnvironmentConfigRequestDTO> configRequests) {
         Integration integration = integrationRepository.findById(integrationId)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
 

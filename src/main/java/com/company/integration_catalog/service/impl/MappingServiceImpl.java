@@ -1,7 +1,9 @@
 package com.company.integration_catalog.service.impl;
 
-import com.company.integration_catalog.dto.FieldMappingDTO;
-import com.company.integration_catalog.dto.MappingSchemaDTO;
+import com.company.integration_catalog.dto.field_mapping.FieldMappingRequestDTO;
+import com.company.integration_catalog.dto.field_mapping.FieldMappingResponseDTO;
+import com.company.integration_catalog.dto.mapping_schema.MappingSchemaRequestDTO;
+import com.company.integration_catalog.dto.mapping_schema.MappingSchemaResponseDTO;
 import com.company.integration_catalog.mapper.IntegrationMapper;
 import com.company.integration_catalog.model.entity.FieldMapping;
 import com.company.integration_catalog.model.entity.Integration;
@@ -29,7 +31,7 @@ public class MappingServiceImpl implements MappingService {
 
     @Override
     @Transactional
-    public MappingSchemaDTO.Response saveSchema(Long integrationId, MappingSchemaDTO.Request request) {
+    public MappingSchemaResponseDTO saveSchema(Long integrationId, MappingSchemaRequestDTO request) {
         Integration integration = integrationRepository.findById(integrationId)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
 
@@ -47,7 +49,7 @@ public class MappingServiceImpl implements MappingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MappingSchemaDTO.Response> getSchemasByIntegration(Long integrationId) {
+    public List<MappingSchemaResponseDTO> getSchemasByIntegration(Long integrationId) {
         return schemaRepository.findByIntegrationId(integrationId).stream()
                 .map(mapper::toSchemaResponse)
                 .collect(Collectors.toList());
@@ -55,7 +57,7 @@ public class MappingServiceImpl implements MappingService {
 
     @Override
     @Transactional
-    public void saveFieldMappings(Long integrationId, List<FieldMappingDTO.Request> mappingRequests) {
+    public void saveFieldMappings(Long integrationId, List<FieldMappingRequestDTO> mappingRequests) {
         Integration integration = integrationRepository.findById(integrationId)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
 
@@ -82,7 +84,7 @@ public class MappingServiceImpl implements MappingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<FieldMappingDTO.Response> getFieldMappingsByIntegration(Long integrationId) {
+    public List<FieldMappingResponseDTO> getFieldMappingsByIntegration(Long integrationId) {
         return fieldMappingRepository.findByIntegrationId(integrationId).stream()
                 .map(mapper::toMappingResponse) // Mapper içindeki field mapping dönüşümünü çağırır
                 .collect(Collectors.toList());

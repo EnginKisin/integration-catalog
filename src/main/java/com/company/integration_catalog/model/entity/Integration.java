@@ -22,10 +22,10 @@ public class Integration extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "description", length = 1000)
+    @Column(name = "description", nullable = false, length = 500)
     private String description;
 
     // Eski String sourceSystem yerine:
@@ -37,6 +37,9 @@ public class Integration extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "destination_id", nullable = false)
     private Destination destination;
+
+    @Column(name = "has_middleware", nullable = false)
+    private Boolean hasMiddleware = false;
 
     // Eğer hasMiddleware true ise seçilecek Middleware objesi:
     @ManyToOne(fetch = FetchType.LAZY)
@@ -51,8 +54,8 @@ public class Integration extends BaseEntity {
     @Column(name = "destination_payload_format", nullable = false)
     private PayloadFormat destinationPayloadFormat;
 
-    @Column(name = "has_middleware", nullable = false)
-    private Boolean hasMiddleware = false;
+    @Column(name = "is_sync", nullable = false)
+    private Boolean isSync = false;
 
     @OneToMany(mappedBy = "integration", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

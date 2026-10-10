@@ -1,7 +1,10 @@
 package com.company.integration_catalog.controller;
 
-import com.company.integration_catalog.dto.LookUpDTO;
+import com.company.integration_catalog.dto.source.SourceRequestDTO;
+import com.company.integration_catalog.dto.source.SourceResponseDTO;
 import com.company.integration_catalog.service.SourceService;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +21,12 @@ public class SourceController {
     private final SourceService sourceService;
 
     @GetMapping
-    public ResponseEntity<List<LookUpDTO.Response>> getAllSources() {
+    public ResponseEntity<List<SourceResponseDTO>> getAllSources() {
         return ResponseEntity.ok(sourceService.getAllSources());
     }
 
     @PostMapping
-    public ResponseEntity<LookUpDTO.Response> createSource(@RequestBody LookUpDTO.Request request) {
+    public ResponseEntity<SourceResponseDTO> createSource(@Valid @RequestBody SourceRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(sourceService.createSource(request));
     }
 }

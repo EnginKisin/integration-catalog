@@ -1,0 +1,47 @@
+package com.company.integration_catalog.dto.integration;
+import com.company.integration_catalog.model.enums.PayloadFormat;
+
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+    public class IntegrationRequestDTO {
+        @NotNull(message = "Integration name cannot be null")
+        @Size(max = 100, message = "Integration name cannot exceed 100 characters")
+        private String name;
+
+        @NotNull(message = "Integration description cannot be null")
+        @Size(max = 500, message = "Integration description cannot exceed 500 characters")
+        private String description;
+
+        // Frontend selectbox'tan seçilen ID'leri gönderecek:
+        @NotNull(message = "Source system ID cannot be null")
+        private Long sourceId;
+
+        @NotNull(message = "Destination system ID cannot be null")
+        private Long destinationId;
+
+        // Eğer hasMiddleware true ise dolu gelecek
+        private Long middlewareId;
+
+        @NotNull(message = "Source payload format cannot be null")
+        private PayloadFormat sourcePayloadFormat;
+
+        @NotNull(message = "Is sync cannot be null")
+        private Boolean isSync;
+
+        @NotNull(message = "Destination payload format cannot be null")
+        private PayloadFormat destinationPayloadFormat;
+
+        @NotNull(message = "Has middleware cannot be null")
+        private Boolean hasMiddleware;
+    }

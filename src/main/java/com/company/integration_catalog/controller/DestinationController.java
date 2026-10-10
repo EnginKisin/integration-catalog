@@ -1,7 +1,10 @@
 package com.company.integration_catalog.controller;
 
-import com.company.integration_catalog.dto.LookUpDTO;
+import com.company.integration_catalog.dto.destination.DestinationRequestDTO;
+import com.company.integration_catalog.dto.destination.DestinationResponseDTO;
 import com.company.integration_catalog.service.DestinationService;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +21,12 @@ public class DestinationController {
     private final DestinationService destinationService;
 
     @GetMapping
-    public ResponseEntity<List<LookUpDTO.Response>> getAllDestinations() {
+    public ResponseEntity<List<DestinationResponseDTO>> getAllDestinations() {
         return ResponseEntity.ok(destinationService.getAllDestinations());
     }
 
     @PostMapping
-    public ResponseEntity<LookUpDTO.Response> createDestination(@RequestBody LookUpDTO.Request request) {
+    public ResponseEntity<DestinationResponseDTO> createDestination(@Valid @RequestBody DestinationRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(destinationService.createDestination(request));
     }
 }

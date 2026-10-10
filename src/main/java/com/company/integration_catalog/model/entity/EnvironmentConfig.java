@@ -38,7 +38,7 @@ public class EnvironmentConfig extends BaseEntity {
     @Column(name = "environment_type", nullable = false)
     private EnvironmentType environmentType;
 
-    @Column(name = "url", nullable = false, length = 500)
+    @Column(name = "url", nullable = false, length = 100)
     private String url;
 
     @Column(name = "timeout_ms")

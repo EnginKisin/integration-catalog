@@ -1,9 +1,10 @@
 package com.company.integration_catalog.service;
 
-import com.company.integration_catalog.dto.LookUpDTO;
+import com.company.integration_catalog.dto.source.SourceRequestDTO;
+import com.company.integration_catalog.dto.source.SourceResponseDTO;
 import java.util.List;
 
 public interface SourceService {
-    List<LookUpDTO.Response> getAllSources();
-    LookUpDTO.Response createSource(LookUpDTO.Request request);
+    List<SourceResponseDTO> getAllSources();
+    SourceResponseDTO createSource(SourceRequestDTO request);
 }

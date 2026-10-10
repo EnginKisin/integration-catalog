@@ -1,6 +1,7 @@
 package com.company.integration_catalog.service.impl;
 
-import com.company.integration_catalog.dto.LookUpDTO;
+import com.company.integration_catalog.dto.middleware.MiddlewareRequestDTO;
+import com.company.integration_catalog.dto.middleware.MiddlewareResponseDTO;
 import com.company.integration_catalog.model.entity.Middleware;
 import com.company.integration_catalog.repository.MiddlewareRepository;
 import com.company.integration_catalog.service.MiddlewareService;
@@ -19,20 +20,21 @@ public class MiddlewareServiceImpl implements MiddlewareService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<LookUpDTO.Response> getAllMiddlewares() {
+    public List<MiddlewareResponseDTO> getAllMiddlewares() {
         return middlewareRepository.findAll().stream()
-                .map(source -> LookUpDTO.Response.builder()
+                .map(source -> MiddlewareResponseDTO.builder()
                         .id(source.getId())
                         .name(source.getName())
+                        .description(source.getDescription())
                         .build())
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public LookUpDTO.Response createMiddleware(LookUpDTO.Request request) {
-        Middleware source = Middleware.builder().name(request.getName()).build();
+    public MiddlewareResponseDTO createMiddleware(MiddlewareRequestDTO request) {
+        Middleware source = Middleware.builder().name(request.getName()).description(request.getDescription()).build();
         Middleware saved = middlewareRepository.save(source);
-        return LookUpDTO.Response.builder().id(saved.getId()).name(saved.getName()).build();
+        return MiddlewareResponseDTO.builder().id(saved.getId()).name(saved.getName()).description(saved.getDescription()).build();
     }
 }

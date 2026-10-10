@@ -1,7 +1,13 @@
 package com.company.integration_catalog.mapper;
 
-import com.company.integration_catalog.dto.EnvironmentConfigDTO;
-import com.company.integration_catalog.dto.IntegrationDTO;
+import com.company.integration_catalog.dto.environment_config.EnvironmentConfigRequestDTO;
+import com.company.integration_catalog.dto.environment_config.EnvironmentConfigResponseDTO;
+import com.company.integration_catalog.dto.field_mapping.FieldMappingRequestDTO;
+import com.company.integration_catalog.dto.field_mapping.FieldMappingResponseDTO;
+import com.company.integration_catalog.dto.mapping_schema.MappingSchemaRequestDTO;
+import com.company.integration_catalog.dto.mapping_schema.MappingSchemaResponseDTO;
+import com.company.integration_catalog.dto.integration.IntegrationRequestDTO;
+import com.company.integration_catalog.dto.integration.IntegrationResponseDTO;
 import com.company.integration_catalog.model.entity.Destination;
 import com.company.integration_catalog.model.entity.EnvironmentConfig;
 import com.company.integration_catalog.model.entity.FieldMapping;
@@ -22,7 +28,7 @@ public class IntegrationMapper {
 
     // --- Integration Dönüşümleri ---
 
-    public Integration toEntity(IntegrationDTO.Request request) {
+    public Integration toEntity(IntegrationRequestDTO request) {
         if (request == null) return null;
 
         return Integration.builder()
@@ -34,34 +40,34 @@ public class IntegrationMapper {
                 .middleware(request.getMiddlewareId() != null ? Middleware.builder().id(request.getMiddlewareId()).build() : null)
                 .sourcePayloadFormat(request.getSourcePayloadFormat())
                 .destinationPayloadFormat(request.getDestinationPayloadFormat())
+                .isSync(request.getIsSync())
+                .isSync(request.getIsSync() != null ? request.getIsSync() : false)
                 .hasMiddleware(request.getHasMiddleware() != null ? request.getHasMiddleware() : false)
                 .status(IntegrationStatus.DRAFT)
                 .build();
     }
 
-    public IntegrationDTO.Response toResponse(Integration entity) {
+    public IntegrationResponseDTO toResponse(Integration entity) {
         if (entity == null) return null;
 
-        List<EnvironmentConfigDTO.Response> configs = new ArrayList<>();
+        List<EnvironmentConfigResponseDTO> configs = new ArrayList<>();
         if (entity.getEnvironmentConfigs() != null) {
             configs = entity.getEnvironmentConfigs().stream()
                     .map(this::toConfigResponse)
                     .collect(Collectors.toList());
         }
 
-        return IntegrationDTO.Response.builder()
+        return IntegrationResponseDTO.builder()
                 .id(entity.getId())
                 .name(entity.getName())
                 .description(entity.getDescription())
                 // İlişkili tablolardan güvenli bir şekilde id ve name çekiyoruz
                 .sourceId(entity.getSource() != null ? entity.getSource().getId() : null)
-                .sourceName(entity.getSource() != null ? entity.getSource().getName() : null)
                 .destinationId(entity.getDestination() != null ? entity.getDestination().getId() : null)
-                .destinationName(entity.getDestination() != null ? entity.getDestination().getName() : null)
                 .middlewareId(entity.getMiddleware() != null ? entity.getMiddleware().getId() : null)
-                .middlewareName(entity.getMiddleware() != null ? entity.getMiddleware().getName() : null)
                 .sourcePayloadFormat(entity.getSourcePayloadFormat())
                 .destinationPayloadFormat(entity.getDestinationPayloadFormat())
+                .isSync(entity.getIsSync())
                 .hasMiddleware(entity.getHasMiddleware())
                 .status(entity.getStatus())
                 .createdAt(entity.getCreatedAt())
@@ -73,7 +79,7 @@ public class IntegrationMapper {
 
     // --- EnvironmentConfig Dönüşümleri ---
 
-    public EnvironmentConfig toConfigEntity(EnvironmentConfigDTO.Request request, Integration integration) {
+    public EnvironmentConfig toConfigEntity(EnvironmentConfigRequestDTO request, Integration integration) {
         if (request == null) return null;
 
         return EnvironmentConfig.builder()
@@ -89,10 +95,10 @@ public class IntegrationMapper {
                 .build();
     }
 
-    public EnvironmentConfigDTO.Response toConfigResponse(EnvironmentConfig entity) {
+    public EnvironmentConfigResponseDTO toConfigResponse(EnvironmentConfig entity) {
         if (entity == null) return null;
 
-        return EnvironmentConfigDTO.Response.builder()
+        return EnvironmentConfigResponseDTO.builder()
                 .id(entity.getId())
                 .configTarget(entity.getConfigTarget())
                 .environmentType(entity.getEnvironmentType())
@@ -109,7 +115,7 @@ public class IntegrationMapper {
 
     // --- MappingSchema Dönüşümleri ---
 
-    public MappingSchema toSchemaEntity(com.company.integration_catalog.dto.MappingSchemaDTO.Request request, Integration integration) {
+    public MappingSchema toSchemaEntity(MappingSchemaRequestDTO request, Integration integration) {
         if (request == null) return null;
 
         return MappingSchema.builder()
@@ -119,10 +125,10 @@ public class IntegrationMapper {
                 .build();
     }
 
-    public com.company.integration_catalog.dto.MappingSchemaDTO.Response toSchemaResponse(MappingSchema entity) {
+    public MappingSchemaResponseDTO toSchemaResponse(MappingSchema entity) {
         if (entity == null) return null;
 
-        return com.company.integration_catalog.dto.MappingSchemaDTO.Response.builder()
+        return MappingSchemaResponseDTO.builder()
                 .id(entity.getId())
                 .schemaType(entity.getSchemaType())
                 .schemaDefinition(entity.getSchemaDefinition())
@@ -131,7 +137,7 @@ public class IntegrationMapper {
 
     // --- FieldMapping (Çizgiler) Dönüşümleri ---
 
-    public FieldMapping toMappingEntity(com.company.integration_catalog.dto.FieldMappingDTO.Request request, 
+    public FieldMapping toMappingEntity(FieldMappingRequestDTO request, 
                                         Integration integration, 
                                         MappingSchema sourceSchema, 
                                         MappingSchema targetSchema) {
@@ -148,10 +154,10 @@ public class IntegrationMapper {
                 .build();
     }
 
-    public com.company.integration_catalog.dto.FieldMappingDTO.Response toMappingResponse(FieldMapping entity) {
+    public FieldMappingResponseDTO toMappingResponse(FieldMapping entity) {
         if (entity == null) return null;
 
-        return com.company.integration_catalog.dto.FieldMappingDTO.Response.builder()
+        return FieldMappingResponseDTO.builder()
                 .id(entity.getId())
                 .sourceSchemaId(entity.getSourceSchema().getId())
                 .sourceFieldPath(entity.getSourceFieldPath())

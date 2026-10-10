@@ -1,6 +1,7 @@
 package com.company.integration_catalog.service.impl;
 
-import com.company.integration_catalog.dto.LookUpDTO;
+import com.company.integration_catalog.dto.source.SourceRequestDTO;
+import com.company.integration_catalog.dto.source.SourceResponseDTO;
 import com.company.integration_catalog.model.entity.Source;
 import com.company.integration_catalog.repository.SourceRepository;
 import com.company.integration_catalog.service.SourceService;
@@ -19,20 +20,21 @@ public class SourceServiceImpl implements SourceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<LookUpDTO.Response> getAllSources() {
+    public List<SourceResponseDTO> getAllSources() {
         return sourceRepository.findAll().stream()
-                .map(source -> LookUpDTO.Response.builder()
+                .map(source -> SourceResponseDTO.builder()
                         .id(source.getId())
                         .name(source.getName())
+                        .description(source.getDescription())
                         .build())
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public LookUpDTO.Response createSource(LookUpDTO.Request request) {
-        Source source = Source.builder().name(request.getName()).build();
+    public SourceResponseDTO createSource(SourceRequestDTO request) {
+        Source source = Source.builder().name(request.getName()).description(request.getDescription()).build();
         Source saved = sourceRepository.save(source);
-        return LookUpDTO.Response.builder().id(saved.getId()).name(saved.getName()).build();
+        return SourceResponseDTO.builder().id(saved.getId()).name(saved.getName()).description(saved.getDescription()).build();
     }
 }
