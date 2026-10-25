@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM eclipse-temurin:21-jdk-jammy AS build
+FROM eclipse-temurin:25-jdk-jammy AS build
 WORKDIR /workspace
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.m2 \
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -DskipTests package
 
-FROM eclipse-temurin:21-jre-jammy AS runtime
+FROM eclipse-temurin:25-jre-jammy AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
