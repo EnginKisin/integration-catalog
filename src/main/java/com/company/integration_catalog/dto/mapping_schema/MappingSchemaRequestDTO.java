@@ -1,6 +1,7 @@
 package com.company.integration_catalog.dto.mapping_schema;
 
 import com.company.integration_catalog.model.enums.SchemaType;
+import com.company.integration_catalog.model.enums.PayloadFormat;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -20,6 +21,9 @@ import java.util.Map;
         @NotNull (message = "Schema type cannot be null")
         private SchemaType schemaType;
 
-        @NotNull (message = "Schema definition cannot be null")
         private Map<String, Object> schemaDefinition;
+
+        private PayloadFormat format;
+        private String rawContent;
+        private CsvOptionsDTO csvOptions;
     }

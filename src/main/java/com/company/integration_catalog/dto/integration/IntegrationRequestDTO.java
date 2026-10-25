@@ -1,8 +1,11 @@
 package com.company.integration_catalog.dto.integration;
 import com.company.integration_catalog.model.enums.PayloadFormat;
+import com.company.integration_catalog.validation.ValidMiddlewareSelection;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.Builder;
@@ -14,8 +17,9 @@ import lombok.AllArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ValidMiddlewareSelection
     public class IntegrationRequestDTO {
-        @NotNull(message = "Integration name cannot be null")
+        @NotBlank(message = "Integration name cannot be blank")
         @Size(max = 100, message = "Integration name cannot exceed 100 characters")
         private String name;
 
@@ -31,6 +35,7 @@ import lombok.AllArgsConstructor;
         private Long destinationId;
 
         // Eğer hasMiddleware true ise dolu gelecek
+        @Positive(message = "Middleware ID must be greater than zero")
         private Long middlewareId;
 
         @NotNull(message = "Source payload format cannot be null")

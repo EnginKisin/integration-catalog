@@ -2,19 +2,65 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: integration_catalog_db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: catalog_user
-      POSTGRES_PASSWORD: catalog_password
-      POSTGRES_DB: integration_catalog
+      POSTGRES_USER: ${POSTGRES_USER:-catalog_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-integration_catalog}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U catalog_user -d integration_catalog"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-integration_catalog}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-catalog_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "5000"
+      SPRING_DATASOURCE_HIKARI_VALIDATION_TIMEOUT: "2000"
+      SPRING_JPA_SHOW_SQL: "false"
+      CATALOG_ADMIN_USERNAME: ${CATALOG_ADMIN_USERNAME:-}
+      CATALOG_ADMIN_PASSWORD: ${CATALOG_ADMIN_PASSWORD:-}
+      CATALOG_CREDENTIALS_KEY: ${CATALOG_CREDENTIALS_KEY:?Set CATALOG_CREDENTIALS_KEY in .env}
+      CATALOG_CREDENTIALS_MIGRATE: ${CATALOG_CREDENTIALS_MIGRATE:-false}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@localhost}
+      ACCOUNT_ACTION_URL: ${ACCOUNT_ACTION_URL:-http://localhost:5173/account/action}
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
 
 volumes:
   postgres_data:

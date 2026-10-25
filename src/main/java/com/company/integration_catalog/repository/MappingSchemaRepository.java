@@ -11,6 +11,8 @@ import java.util.Optional;
 @Repository
 public interface MappingSchemaRepository extends JpaRepository<MappingSchema, Long> {
 
+    Optional<MappingSchema> findByIdAndIntegrationId(Long id, Long integrationId);
+
     // Bir entegrasyona ait tüm şemaları (4 adet payload alanını) getirir
     List<MappingSchema> findByIntegrationId(Long integrationId);
 

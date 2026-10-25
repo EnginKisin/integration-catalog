@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
+import java.util.List;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 @Getter
 @Setter
@@ -16,4 +18,8 @@ public class ErrorResponse {
     private String error;
     private String message;
     private String path;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String code;
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<String> details;
 }

@@ -24,5 +24,6 @@ public interface IntegrationService {
 
     // ... Mevcut metotların hemen altına:
     void completeIntegration(Long id);
+    IntegrationResponseDTO confirmIntegrationReview(Long id);
     
 }

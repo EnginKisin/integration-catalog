@@ -49,8 +49,8 @@ public class EnvironmentConfig extends BaseEntity {
     private AuthType authType;
 
     /**
-     * Dinamik Auth Verileri (Client-ID, Secret, API Key vb.)
-     * PostgreSQL tarafında jsonb olarak saklanır.
+     * Encrypted credential envelope, stored as JSONB (format, IV and ciphertext).
+     * Plaintext is only constructed on authorized reveal or before encryption.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "auth_credentials", columnDefinition = "jsonb")

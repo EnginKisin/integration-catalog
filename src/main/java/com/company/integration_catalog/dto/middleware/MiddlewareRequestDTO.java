@@ -1,6 +1,7 @@
 package com.company.integration_catalog.dto.middleware;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,7 +14,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class MiddlewareRequestDTO {
 
-    @NotNull(message = "Middleware name cannot be null")
+    @NotBlank(message = "Middleware name cannot be blank")
     @Size(max = 100, message = "Middleware name cannot exceed 100 characters")
     private String name;
 

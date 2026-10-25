@@ -1,5 +1,8 @@
 package com.company.integration_catalog.mapper;
 
+import com.company.integration_catalog.dto.mapping_schema.CsvOptionsDTO;
+import com.company.integration_catalog.payload.PayloadSchemas;
+
 import com.company.integration_catalog.dto.environment_config.EnvironmentConfigRequestDTO;
 import com.company.integration_catalog.dto.environment_config.EnvironmentConfigResponseDTO;
 import com.company.integration_catalog.dto.field_mapping.FieldMappingRequestDTO;
@@ -8,13 +11,10 @@ import com.company.integration_catalog.dto.mapping_schema.MappingSchemaRequestDT
 import com.company.integration_catalog.dto.mapping_schema.MappingSchemaResponseDTO;
 import com.company.integration_catalog.dto.integration.IntegrationRequestDTO;
 import com.company.integration_catalog.dto.integration.IntegrationResponseDTO;
-import com.company.integration_catalog.model.entity.Destination;
 import com.company.integration_catalog.model.entity.EnvironmentConfig;
 import com.company.integration_catalog.model.entity.FieldMapping;
 import com.company.integration_catalog.model.entity.Integration;
 import com.company.integration_catalog.model.entity.MappingSchema;
-import com.company.integration_catalog.model.entity.Middleware;
-import com.company.integration_catalog.model.entity.Source;
 import com.company.integration_catalog.model.enums.IntegrationStatus;
 
 import org.springframework.stereotype.Component;
@@ -34,13 +34,8 @@ public class IntegrationMapper {
         return Integration.builder()
                 .name(request.getName())
                 .description(request.getDescription())
-                // ID'leri doğrudan Hibernate proxy/referansı olarak setliyoruz (ilişki kurmak için yeterlidir)
-                .source(request.getSourceId() != null ? Source.builder().id(request.getSourceId()).build() : null)
-                .destination(request.getDestinationId() != null ? Destination.builder().id(request.getDestinationId()).build() : null)
-                .middleware(request.getMiddlewareId() != null ? Middleware.builder().id(request.getMiddlewareId()).build() : null)
                 .sourcePayloadFormat(request.getSourcePayloadFormat())
                 .destinationPayloadFormat(request.getDestinationPayloadFormat())
-                .isSync(request.getIsSync())
                 .isSync(request.getIsSync() != null ? request.getIsSync() : false)
                 .hasMiddleware(request.getHasMiddleware() != null ? request.getHasMiddleware() : false)
                 .status(IntegrationStatus.DRAFT)
@@ -70,6 +65,7 @@ public class IntegrationMapper {
                 .isSync(entity.getIsSync())
                 .hasMiddleware(entity.getHasMiddleware())
                 .status(entity.getStatus())
+                .reviewRequired(entity.isReviewRequired())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .environmentConfigs(configs)
@@ -106,6 +102,7 @@ public class IntegrationMapper {
                 .timeoutMs(entity.getTimeoutMs())
                 .authType(entity.getAuthType())
                 .authCredentials(entity.getAuthCredentials())
+                .credentialsConfigured(entity.getAuthCredentials() != null && !entity.getAuthCredentials().isEmpty())
                 .retryCount(entity.getRetryCount())
                 .retryIntervalMs(entity.getRetryIntervalMs())
                 .build();
@@ -132,6 +129,16 @@ public class IntegrationMapper {
                 .id(entity.getId())
                 .schemaType(entity.getSchemaType())
                 .schemaDefinition(entity.getSchemaDefinition())
+                .format(PayloadSchemas.format(entity))
+                .rawContent(entity.getRawContent())
+                .mappingSupported(PayloadSchemas.format(entity).supportsFieldMapping())
+                .csvOptions(entity.getCsvDelimiter() == null ? null :
+                        new CsvOptionsDTO(entity.getCsvDelimiter(), entity.getCsvHasHeader()))
+                .fileName(entity.getFileName())
+                .contentType(entity.getContentType())
+                .fileSize(entity.getSampleFile() == null ? null : (long) entity.getSampleFile().length)
+                .sampleDownloadUrl(entity.getSampleFile() == null ? null : "/api/v1/integrations/"
+                        + entity.getIntegration().getId() + "/mappings/schemas/" + entity.getId() + "/sample")
                 .build();
     }
 

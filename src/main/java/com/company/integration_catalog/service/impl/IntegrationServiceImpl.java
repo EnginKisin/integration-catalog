@@ -10,16 +10,27 @@ import com.company.integration_catalog.model.entity.Integration;
 import com.company.integration_catalog.model.entity.Middleware;
 import com.company.integration_catalog.model.entity.Source;
 import com.company.integration_catalog.model.enums.ConfigTarget;
+import com.company.integration_catalog.model.enums.AuthType;
 import com.company.integration_catalog.model.enums.IntegrationStatus;
 import com.company.integration_catalog.repository.EnvironmentConfigRepository;
 import com.company.integration_catalog.repository.IntegrationRepository;
+import com.company.integration_catalog.repository.SourceRepository;
+import com.company.integration_catalog.repository.DestinationRepository;
+import com.company.integration_catalog.repository.MiddlewareRepository;
 import com.company.integration_catalog.service.IntegrationService;
+import com.company.integration_catalog.validation.IntegrationCompletionValidator;
+import com.company.integration_catalog.security.CredentialCrypto;
+import com.company.integration_catalog.security.CredentialAccess;
+import com.company.integration_catalog.model.enums.UserPermission;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +40,12 @@ public class IntegrationServiceImpl implements IntegrationService {
     private final IntegrationRepository integrationRepository;
     private final EnvironmentConfigRepository configRepository;
     private final IntegrationMapper integrationMapper;
+    private final SourceRepository sourceRepository;
+    private final DestinationRepository destinationRepository;
+    private final MiddlewareRepository middlewareRepository;
+    private final IntegrationCompletionValidator completionValidator;
+    private final CredentialCrypto credentialCrypto;
+    private final CredentialAccess credentialAccess;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,6 +71,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional
     public IntegrationResponseDTO createIntegration(IntegrationRequestDTO request) {
         Integration integration = integrationMapper.toEntity(request);
+        assignSystems(integration, request);
         Integration savedIntegration = integrationRepository.save(integration);
         return integrationMapper.toResponse(savedIntegration);
     }
@@ -61,35 +79,68 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Override
     @Transactional
     public IntegrationResponseDTO updateIntegration(Long id, IntegrationRequestDTO request) {
-        Integration existingIntegration = integrationRepository.findById(id)
+        Integration existingIntegration = integrationRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
 
+        boolean technicalChange = !Objects.equals(existingIntegration.getSource() == null ? null : existingIntegration.getSource().getId(), request.getSourceId())
+                || !Objects.equals(existingIntegration.getDestination() == null ? null : existingIntegration.getDestination().getId(), request.getDestinationId())
+                || !Objects.equals(existingIntegration.getMiddleware() == null ? null : existingIntegration.getMiddleware().getId(), request.getMiddlewareId())
+                || !Objects.equals(existingIntegration.getHasMiddleware(), request.getHasMiddleware())
+                || !Objects.equals(existingIntegration.getIsSync(), request.getIsSync())
+                || existingIntegration.getSourcePayloadFormat() != request.getSourcePayloadFormat()
+                || existingIntegration.getDestinationPayloadFormat() != request.getDestinationPayloadFormat();
+        assignSystems(existingIntegration, request);
         existingIntegration.setName(request.getName());
         existingIntegration.setDescription(request.getDescription());
-        
-        // Yeni Nesne Atamaları:
-        existingIntegration.setSource(request.getSourceId() != null ? Source.builder().id(request.getSourceId()).build() : null);
-        existingIntegration.setDestination(request.getDestinationId() != null ? Destination.builder().id(request.getDestinationId()).build() : null);
-        existingIntegration.setMiddleware(request.getMiddlewareId() != null ? Middleware.builder().id(request.getMiddlewareId()).build() : null);
         
         existingIntegration.setSourcePayloadFormat(request.getSourcePayloadFormat());
         existingIntegration.setDestinationPayloadFormat(request.getDestinationPayloadFormat());
         existingIntegration.setHasMiddleware(request.getHasMiddleware());
+        existingIntegration.setIsSync(request.getIsSync());
+
+        if (technicalChange) {
+            existingIntegration.setStatus(IntegrationStatus.DRAFT);
+            if (!existingIntegration.getEnvironmentConfigs().isEmpty() || !existingIntegration.getMappingSchemas().isEmpty()
+                    || !existingIntegration.getFieldMappings().isEmpty()) {
+                existingIntegration.setReviewRequired(true);
+            }
+        }
 
         Integration updatedIntegration = integrationRepository.save(existingIntegration);
         return integrationMapper.toResponse(updatedIntegration);
     }
 
+    private void assignSystems(Integration integration, IntegrationRequestDTO request) {
+        Source source = sourceRepository.findByIdForUpdate(request.getSourceId())
+                .orElseThrow(() -> new EntityNotFoundException("Source not found with id: " + request.getSourceId()));
+        Destination destination = destinationRepository.findByIdForUpdate(request.getDestinationId())
+                .orElseThrow(() -> new EntityNotFoundException("Destination not found with id: " + request.getDestinationId()));
+        Middleware middleware = request.getMiddlewareId() == null ? null
+                : middlewareRepository.findByIdForUpdate(request.getMiddlewareId())
+                        .orElseThrow(() -> new EntityNotFoundException("Middleware not found with id: " + request.getMiddlewareId()));
+
+        boolean creating = integration.getId() == null;
+        if ((!source.isActive() && (creating || integration.getSource() == null || !Objects.equals(integration.getSource().getId(), source.getId())))
+                || (!destination.isActive() && (creating || integration.getDestination() == null || !Objects.equals(integration.getDestination().getId(), destination.getId())))
+                || (middleware != null && !middleware.isActive() && (creating || integration.getMiddleware() == null
+                || !Objects.equals(integration.getMiddleware().getId(), middleware.getId())))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Inactive systems cannot be selected; an existing selection may be retained");
+        }
+
+        // Tüm referanslar doğrulandıktan sonra mevcut entity üzerinde değişiklik yap.
+        integration.setSource(source);
+        integration.setDestination(destination);
+        integration.setMiddleware(middleware);
+    }
+
     @Override
     @Transactional
     public void saveEnvironmentConfigs(Long integrationId, List<EnvironmentConfigRequestDTO> configRequests) {
-        Integration integration = integrationRepository.findById(integrationId)
+        Integration integration = integrationRepository.findByIdForUpdate(integrationId)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
 
-        // Adım 2 her kaydedildiğinde eski konfigürasyonları temizleyip sıfırdan güncel listeyi yazıyoruz (Idempotent işlem)
         List<EnvironmentConfig> oldConfigs = configRepository.findByIntegrationId(integrationId);
-        configRepository.deleteAll(oldConfigs);
-
+        java.util.Set<String> seen = new java.util.HashSet<>();
         List<EnvironmentConfig> newConfigs = configRequests.stream()
                 .filter(req -> {
                     // Kritik Kural Kontrolü: Eğer Adım 1'de middleware seçilmediyse, 
@@ -99,10 +150,60 @@ public class IntegrationServiceImpl implements IntegrationService {
                     }
                     return true;
                 })
-                .map(req -> integrationMapper.toConfigEntity(req, integration))
+                .map(req -> {
+                    String configKey = req.getEnvironmentType() + "/" + req.getConfigTarget();
+                    if (!seen.add(configKey)) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate environment configuration");
+                    }
+                    EnvironmentConfig old = oldConfigs.stream()
+                            .filter(existing -> existing.getEnvironmentType() == req.getEnvironmentType()
+                                    && existing.getConfigTarget() == req.getConfigTarget())
+                            .findFirst().orElse(null);
+                    EnvironmentConfig config = integrationMapper.toConfigEntity(req, integration);
+                    // Update in place to preserve IDs, creation timestamps and credential context.
+                    if (old != null) {
+                        config.setId(old.getId());
+                        config.setCreatedAt(old.getCreatedAt());
+                    }
+                    boolean hadCredentials = old != null && old.getAuthCredentials() != null
+                            && !old.getAuthCredentials().isEmpty();
+                    if (req.getAuthCredentials() != null || (hadCredentials
+                            && (old.getAuthType() != req.getAuthType() || req.getAuthType() == AuthType.NONE))) {
+                        credentialAccess.require(UserPermission.MANAGE_CREDENTIALS);
+                    }
+                    if (req.getAuthType() == AuthType.NONE) {
+                        config.setAuthCredentials(null);
+                    } else if (req.getAuthCredentials() == null) {
+                        if (old != null && old.getAuthType() == req.getAuthType()) {
+                            config.setAuthCredentials(old.getAuthCredentials());
+                        }
+                    } else {
+                        if (req.getAuthCredentials().isEmpty()) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                    "Credentials cannot be empty; omit to preserve or select NONE to clear");
+                        }
+                        config.setAuthCredentials(credentialCrypto.encrypt(req.getAuthCredentials(), config));
+                    }
+                    if (req.getAuthType() != AuthType.NONE && (config.getAuthCredentials() == null
+                            || config.getAuthCredentials().isEmpty())) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "Credentials are required for the selected authentication type");
+                    }
+                    return config;
+                })
                 .collect(Collectors.toList());
 
+        List<EnvironmentConfig> removed = oldConfigs.stream()
+                .filter(old -> newConfigs.stream().noneMatch(config ->
+                        config.getEnvironmentType() == old.getEnvironmentType()
+                                && config.getConfigTarget() == old.getConfigTarget()))
+                .toList();
+        if (removed.stream().anyMatch(old -> old.getAuthCredentials() != null && !old.getAuthCredentials().isEmpty())) {
+            credentialAccess.require(UserPermission.MANAGE_CREDENTIALS);
+        }
+        configRepository.deleteAll(removed);
         configRepository.saveAll(newConfigs);
+        integration.setStatus(IntegrationStatus.DRAFT);
     }
 
     @Override
@@ -115,14 +216,22 @@ public class IntegrationServiceImpl implements IntegrationService {
         integrationRepository.deleteById(id);
     }
 
-    // ... Mevcut metotların en altına:
     @Override
     @Transactional
     public void completeIntegration(Long id) {
-        Integration integration = integrationRepository.findById(id)
+        Integration integration = integrationRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
-                
+        completionValidator.validate(integration);
         integration.setStatus(IntegrationStatus.COMPLETED);
         integrationRepository.save(integration);
+    }
+
+    @Override
+    @Transactional
+    public IntegrationResponseDTO confirmIntegrationReview(Long id) {
+        Integration integration = integrationRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
+        integration.setReviewRequired(false);
+        return integrationMapper.toResponse(integrationRepository.save(integration));
     }
 }

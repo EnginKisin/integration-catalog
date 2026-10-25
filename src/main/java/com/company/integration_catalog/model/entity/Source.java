@@ -11,6 +11,10 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class Source {
+    @Builder.Default
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean active = true;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

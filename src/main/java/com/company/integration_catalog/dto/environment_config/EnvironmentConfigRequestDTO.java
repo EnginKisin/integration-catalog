@@ -5,6 +5,10 @@ import com.company.integration_catalog.model.enums.ConfigTarget;
 import com.company.integration_catalog.model.enums.EnvironmentType;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.util.Map;
@@ -21,16 +25,20 @@ import java.util.Map;
         @NotNull(message = "Environment type cannot be null")
         private EnvironmentType environmentType;
 
-        @NotNull(message = "URL cannot be null")
+        @NotBlank(message = "URL cannot be blank")
+        @Size(max = 100, message = "URL cannot exceed 100 characters")
         private String url;
 
+        @Positive(message = "Timeout must be greater than zero")
         private Integer timeoutMs;
 
         @NotNull(message = "Auth type cannot be null")
         private AuthType authType;
 
         private Map<String, Object> authCredentials; // Dinamik auth alanları Map olarak gelir
+        @PositiveOrZero(message = "Retry count cannot be negative")
         private Integer retryCount;
+        @PositiveOrZero(message = "Retry interval cannot be negative")
         private Integer retryIntervalMs;
     }
 

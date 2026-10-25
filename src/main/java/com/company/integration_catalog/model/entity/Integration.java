@@ -22,6 +22,13 @@ public class Integration extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(columnDefinition = "bigint default 0")
+    private Long version;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean reviewRequired;
+
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 

@@ -1,6 +1,7 @@
 package com.company.integration_catalog.dto.destination;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,7 +14,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class DestinationRequestDTO {
 
-    @NotNull(message = "Destination name cannot be null")
+    @NotBlank(message = "Destination name cannot be blank")
     @Size(max = 100, message = "Destination name cannot exceed 100 characters")
     private String name;
 

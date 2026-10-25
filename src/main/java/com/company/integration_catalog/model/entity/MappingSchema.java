@@ -1,6 +1,7 @@
 package com.company.integration_catalog.model.entity;
 
 import com.company.integration_catalog.model.enums.SchemaType;
+import com.company.integration_catalog.model.enums.PayloadFormat;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -39,4 +40,25 @@ public class MappingSchema extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "schema_definition", columnDefinition = "jsonb", nullable = false)
     private Map<String, Object> schemaDefinition;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(16) default 'JSON'")
+    @Builder.Default
+    private PayloadFormat format = PayloadFormat.JSON;
+
+    @Column(columnDefinition = "text")
+    private String rawContent;
+
+    @Column(length = 255)
+    private String fileName;
+
+    private String contentType;
+
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(columnDefinition = "bytea")
+    private byte[] sampleFile;
+
+    private String csvDelimiter;
+
+    private Boolean csvHasHeader;
 }

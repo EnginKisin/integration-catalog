@@ -27,6 +27,7 @@ import java.util.List;
         private Boolean isSync;
         private Boolean hasMiddleware;
         private IntegrationStatus status;
+        private boolean reviewRequired;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
         private List<EnvironmentConfigResponseDTO> environmentConfigs;

@@ -19,7 +19,9 @@ import java.util.Map;
         private String url;
         private Integer timeoutMs;
         private AuthType authType;
+        @com.fasterxml.jackson.annotation.JsonIgnore
         private Map<String, Object> authCredentials;
+        private boolean credentialsConfigured;
         private Integer retryCount;
         private Integer retryIntervalMs;
     }

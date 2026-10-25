@@ -1,4 +1,23 @@
 HELP.md
+.env
+.env.*
+!.env.example
+
+# Local metadata, credentials, logs and database backups
+.DS_Store
+._*
+/.aws/
+/.codex/
+/.agents/
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+*.dump
+*.backup
+/backups/
+
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

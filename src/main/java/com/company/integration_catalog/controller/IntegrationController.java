@@ -6,6 +6,7 @@ import com.company.integration_catalog.dto.integration.IntegrationResponseDTO;
 import com.company.integration_catalog.service.IntegrationService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,10 +17,18 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/integrations")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // Geliştirme aşamasında frontend'in (CORS) takılmaması için
 public class IntegrationController {
 
     private final IntegrationService integrationService;
+
+    @PostMapping("/{id}/review/confirm")
+    public ResponseEntity<IntegrationResponseDTO> confirmReview(@PathVariable Long id,
+            @Valid @RequestBody ReviewConfirmationRequest request) {
+        return ResponseEntity.ok(integrationService.confirmIntegrationReview(id));
+    }
+
+    public record ReviewConfirmationRequest(
+            @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.AssertTrue Boolean confirmed) {}
 
     // 1. Dashboard: Tüm entegrasyonların listelenmesi ve ana arama çubuğu sorgusu
     @GetMapping
@@ -55,17 +64,16 @@ public class IntegrationController {
     // Entegrasyon Güncelleme (Gerekirse Adım 1'e geri dönüp düzenlemek için)
     @PutMapping("/{id}")
     public ResponseEntity<IntegrationResponseDTO> updateIntegration(
-            @Valid @PathVariable Long id, 
-            @RequestBody IntegrationRequestDTO request) {
+            @PathVariable Long id,
+            @Valid @RequestBody IntegrationRequestDTO request) {
         return ResponseEntity.ok(integrationService.updateIntegration(id, request));
     }
 
     // 3. Create Wizard (Adım 2): Ortam konfigürasyonlarını topluca kaydetme
     @PostMapping("/{id}/configs")
     public ResponseEntity<Void> saveEnvironmentConfigs(
-            @Valid
-            @PathVariable Long id, 
-            @RequestBody List<EnvironmentConfigRequestDTO> configRequests) {
+            @PathVariable Long id,
+            @NotNull @Valid @RequestBody List<@NotNull @Valid EnvironmentConfigRequestDTO> configRequests) {
         integrationService.saveEnvironmentConfigs(id, configRequests);
         return ResponseEntity.ok().build();
     }

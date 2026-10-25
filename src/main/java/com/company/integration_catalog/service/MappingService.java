@@ -6,11 +6,18 @@ import com.company.integration_catalog.dto.mapping_schema.MappingSchemaRequestDT
 import com.company.integration_catalog.dto.mapping_schema.MappingSchemaResponseDTO;
 
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface MappingService {
 
     // 4 büyük payload alanına şema kaydetmek/güncellemek için
     MappingSchemaResponseDTO saveSchema(Long integrationId, MappingSchemaRequestDTO request);
+
+    MappingSchemaResponseDTO uploadSchema(Long integrationId, MappingSchemaRequestDTO metadata, MultipartFile file);
+
+    SampleFile getSampleFile(Long integrationId, Long schemaId);
+
+    record SampleFile(String fileName, String contentType, byte[] bytes) {}
 
     // Entegrasyona ait yüklenmiş tüm şemaları listelemek için
     List<MappingSchemaResponseDTO> getSchemasByIntegration(Long integrationId);

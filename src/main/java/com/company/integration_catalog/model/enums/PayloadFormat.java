@@ -4,5 +4,10 @@ public enum PayloadFormat {
     JSON,
     XML,
     IDOC,
-    CSV
+    CSV,
+    EXCEL;
+
+    public boolean supportsFieldMapping() {
+        return this != CSV && this != EXCEL;
+    }
 }

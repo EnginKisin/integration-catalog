@@ -15,14 +15,39 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/sources")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class SourceController {
 
     private final SourceService sourceService;
 
+    @GetMapping("/{id}")
+    public ResponseEntity<SourceResponseDTO> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(sourceService.getSourceById(id));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<SourceResponseDTO> update(@PathVariable Long id,
+            @Valid @RequestBody SourceRequestDTO request) {
+        return ResponseEntity.ok(sourceService.updateSource(id, request));
+    }
+
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<SourceResponseDTO> setActive(@PathVariable Long id,
+            @Valid @RequestBody com.company.integration_catalog.dto.ActiveStatusRequest request) {
+        return ResponseEntity.ok(sourceService.setSourceActive(id, request.active()));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        sourceService.deleteSource(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping
-    public ResponseEntity<List<SourceResponseDTO>> getAllSources() {
-        return ResponseEntity.ok(sourceService.getAllSources());
+    public ResponseEntity<List<SourceResponseDTO>> getAllSources(
+            @RequestParam(required = false) Boolean active) {
+        List<SourceResponseDTO> items = sourceService.getAllSources();
+        return ResponseEntity.ok(active == null ? items
+                : items.stream().filter(item -> item.isActive() == active).toList());
     }
 
     @PostMapping

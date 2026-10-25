@@ -16,4 +16,6 @@ public class DestinationResponseDTO {
     private Long id;
     private String name;
     private String description;
+    private boolean active;
+    private long usageCount;
 }
