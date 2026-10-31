@@ -8,10 +8,10 @@ kayıt altına alarak tanımlanan veri akışlarının haritalandırılmasını 
 Yapay zeka, alan eşleme önerileriyle bu dokümantasyon sürecini destekler.
 
 **Bu proje bir veri taşıma motoru değildir.** Sistemler arasında veri aktarmaz,
-entegrasyonları çalıştırmaz; timeout ve retry değerlerini katalog bilgisi olarak saklar.
+entegrasyonları çalıştırmaz.
 
 Bu repo portalın REST API backend'ini içerir; frontend ayrı projededir.
-Ortam ayarları, şifreli erişim bilgileri, kullanıcı daveti ve rol yönetimi de bu API üzerinden yönetilir.
+Entegrasyonlar, ortam ayarları, şifreli erişim bilgileri, kullanıcı daveti ve rol yönetimi de bu API üzerinden yönetilir.
 
 **Teknolojiler:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Data JPA · PostgreSQL
 
