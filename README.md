@@ -1,70 +1,70 @@
 # Integration Catalog Backend
 
-Integration Catalog, büyük ölçekli şirketlerin karmaşık sistem mimarilerini ve
-entegrasyon ilişkilerini dokümante etmeyi hedefleyen, entegrasyon odaklı bir
-**Enterprise Architecture (Kurumsal Mimari) Portalı** projesidir. Hangi sistemin
-hangi sisteme, hangi formatta veri aktardığını ve alanların nasıl eşlendiğini
-kayıt altına alarak tanımlanan veri akışlarının haritalandırılmasını sağlar.
-Yapay zeka, alan eşleme önerileriyle bu dokümantasyon sürecini destekler.
+Integration Catalog is an integration-focused **Enterprise Architecture Portal**.
+It helps large companies document complex systems and their connections. It records
+which system sends data to another system, the data formats, and the field mappings.
+AI supports this work by suggesting field mappings.
 
-**Bu proje bir veri taşıma motoru değildir.** Sistemler arasında veri aktarmaz,
-entegrasyonları çalıştırmaz.
+**This project is not a data transfer engine.** It does not move data between
+systems or run integrations.
 
-Bu repo portalın REST API backend'ini içerir; frontend ayrı projededir.
-Entegrasyonlar, ortam ayarları, şifreli erişim bilgileri, kullanıcı daveti ve rol yönetimi de bu API üzerinden yönetilir.
+This repository contains the portal's REST API backend. The frontend is a separate
+project. The API manages integrations, environment settings, encrypted credentials,
+user invitations, and roles.
 
-**Teknolojiler:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Data JPA · PostgreSQL
+**Technologies:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Data JPA · PostgreSQL
 
-## Temel akışlar
+## Main workflows
 
-### Sistem bağlantıları
+### System connections
 
-Ortak katalogdan kaynak, hedef ve isteğe bağlı ara katman seçilir.
+Select a source, a target, and optional middleware from the shared system catalog.
 
-![Doğrudan ve ara katmanlı entegrasyonlarda istek ve yanıt yönleri](docs/images/system-connections.png)
+![Request and response directions in direct and middleware connections](docs/images/system-connections.png)
 
-### Entegrasyon kaydı
+### Integration setup
 
-Sistemleri seç → `DRAFT` oluştur → ortam ayarlarını ekle → şema/örnekleri kaydet
-→ isteğe bağlı alan eşlemelerini yap → tamamlama kontrolü → `COMPLETED`.
+Select systems → create a `DRAFT` → add environment settings → save schemas and
+samples → optionally map fields → check completion → `COMPLETED`.
 
-![Sistem seçiminden DRAFT kaydına, tamamlama kontrolüne ve COMPLETED durumuna entegrasyon kayıt süreci](docs/images/integration-workflow.png)
+![Integration setup from system selection and DRAFT to completion checks and COMPLETED](docs/images/integration-workflow.png)
 
-API örnekleri ve tamamlama kuralları: [Entegrasyon iş akışı](docs/integration-workflow.md).
+API examples and completion rules: [Integration workflow](docs/integration-workflow.md).
 
-### AI ile alan eşleme
+### AI field mapping
 
-JSON/XML/IDOC alanları manuel veya AI önerileriyle eşlenebilir; CSV/Excel yalnızca
-örnek dosya olarak saklanır. AI varsayılan olarak kapalıdır; sağlayıcısı yerel
-Ollama'dır. Alternatif Gemini, alan metaverisini/isteğe bağlı örnekleri Google'a gönderir.
+Map JSON/XML/IDOC fields manually or with AI suggestions. CSV/Excel files are stored
+as samples only. AI is off by default. The default provider is local Ollama.
+The optional Gemini provider sends field metadata and optional sample values to Google.
 
-![AI önerisi isteme, iş durumunu sorgulama ve kullanıcı onayıyla seçilen alan eşlemelerini kaydetme akışı](docs/images/ai-mapping-flow.png)
+![Request AI suggestions, check job status, and save selected mappings after user approval](docs/images/ai-mapping-flow.png)
 
-Kurulum ve API: [AI eşleme asistanı](docs/ai-mapping.md). Öneriler kullanıcı onayıyla kaydedilir.
+Setup and API: [AI mapping assistant](docs/ai-mapping.md). Suggestions are saved only after user approval.
 
-## Başlangıç
+## Getting started
 
-Docker ve Docker Compose gerekir. Yerel geliştirme/test için JDK 21 ve repodaki Maven Wrapper kullanılır.
+Docker and Docker Compose are required. For local development and tests, use JDK 21
+and the Maven Wrapper included in this repository.
 
-### 1. Ortam dosyasını hazırla
+### 1. Prepare the environment file
 
 ```sh
 cp .env.example .env
 ```
 
-`.env` değerlerini tamamlayın:
+Set these values in `.env`:
 
-| Değişken | Değer |
+| Variable | Value |
 |---|---|
-| `POSTGRES_PASSWORD` | Veritabanı parolası |
-| `CATALOG_ADMIN_USERNAME` | İlk yönetici adı; örnekte `admin` |
-| `CATALOG_ADMIN_PASSWORD` | İlk yönetici parolası; 12–128 karakter |
-| `CATALOG_CREDENTIALS_KEY` | `openssl rand -base64 32` ile bir kez üretilen anahtar |
+| `POSTGRES_PASSWORD` | Database password |
+| `CATALOG_ADMIN_USERNAME` | First admin username; the example uses `admin` |
+| `CATALOG_ADMIN_PASSWORD` | First admin password; 12–128 characters |
+| `CATALOG_CREDENTIALS_KEY` | Generate once with `openssl rand -base64 32` |
 
-Anahtarı kalıcı saklayın; mevcut veritabanının parolasını/anahtarını koruyun.
-IDE/Maven `.env` dosyasını otomatik yüklemez.
+Keep the encryption key safe. For an existing database, keep its current password
+and key. IDEs and Maven do not load `.env` automatically.
 
-### 2. Servisleri başlat
+### 2. Start the services
 
 ```sh
 docker compose --profile mail up --build -d --wait --wait-timeout 180
@@ -72,61 +72,60 @@ docker compose ps
 curl -i http://localhost:8080/actuator/health/readiness
 ```
 
-`mail`, gerçek alıcılara gönderim yapmayan Mailpit test posta kutusunu açar.
+The `mail` profile starts the Mailpit test inbox. It does not send email to real recipients.
 
-### 3. API'ye bağlan
+### 3. Connect to the API
 
-Aşağıdaki adresler varsayılan portlar içindir:
+These addresses use the default ports:
 
-| Adres | Kullanım |
+| Address | Purpose |
 |---|---|
-| `http://localhost:8080/api/v1` | API kökü; oturum ve rol kontrolü |
-| `http://localhost:8080/swagger-ui/index.html` | Swagger; ADMIN oturumu gerekir |
-| `http://localhost:8080/v3/api-docs` | OpenAPI JSON; ADMIN oturumu gerekir |
-| `http://localhost:8080/actuator/health/readiness` | Giriş gerektirmeyen sağlık kontrolü |
-| `http://localhost:8025` | Mailpit test posta kutusu |
+| `http://localhost:8080/api/v1` | API root; session and role checks apply |
+| `http://localhost:8080/swagger-ui/index.html` | Swagger; requires an ADMIN session |
+| `http://localhost:8080/v3/api-docs` | OpenAPI JSON; requires an ADMIN session |
+| `http://localhost:8080/actuator/health/readiness` | Health check; no login required |
+| `http://localhost:8025` | Mailpit test inbox |
 
-Giriş: **CSRF al → form verisiyle giriş yap → CSRF yenile**. Oturum çerezini koruyun.
-[Çalıştırılabilir istemci örneği](docs/frontend-integration.md#oturum-ve-csrf).
+Login: **get CSRF → submit form login → refresh CSRF**. Keep the session cookie.
+[Runnable client example](docs/frontend-integration.md#sessions-and-csrf).
 
-## Belgeler
+## Documentation
 
-Tüm rehberler [doküman dizininde](docs/README.md) bulunur.
+All guides are listed in the [documentation index](docs/README.md).
 
-| İhtiyaç | Rehber |
+| Need | Guide |
 |---|---|
-| Oturum ve ekran akışları | [Frontend entegrasyonu](docs/frontend-integration.md) |
-| Endpoint ve doğrulamalar | [API sözleşmesi](docs/api-reference.md) |
-| Hata kodları, alan hataları ve yerelleştirme | [Hata sözleşmesi ve katalog](docs/error-codes.md) |
-| Env, IDE, sorun giderme | [Yapılandırma](docs/configuration.md) |
-| Format ve dosya kuralları | [Payload](docs/payload-content.md) |
-| Veri modeli, üretim sınırları | [Mimari](docs/architecture.md) |
+| Sessions and screen workflows | [Frontend integration](docs/frontend-integration.md) |
+| Endpoints and validation | [API reference](docs/api-reference.md) |
+| Error codes, field errors, and localization | [Error contract and catalog](docs/error-codes.md) |
+| Environment variables, IDE setup, troubleshooting | [Configuration](docs/configuration.md) |
+| Formats and file rules | [Payloads](docs/payload-content.md) |
+| Data model and production limits | [Architecture](docs/architecture.md) |
 
-## Testler
+## Tests
 
-Veritabanı gerektiren uygulama açılış testini hariç tutarak:
+Run tests without the application startup test, which needs a database:
 
 ```sh
 ./mvnw -B '-Dtest=*Tests,!IntegrationCatalogApplicationTests' test
 ```
 
-`./mvnw test` ayrıca PostgreSQL, şifreleme anahtarı ve boş kullanıcı tablosunda
-ilk yönetici ayarlarını gerektirir. [Opt-in DB testleri](docs/payload-content.md#veritabanı-geçişi-ve-test)
-ayrıca etkinleştirilir. Docker image build'i test çalıştırmaz.
+`./mvnw test` also needs PostgreSQL, the encryption key, and first admin settings
+when the user table is empty. Enable [optional database tests](docs/payload-content.md#database-upgrades-and-tests)
+separately. The Docker image build does not run tests.
 
-## Paylaşım kontrolleri ve CI
+## Repository checks and CI
 
 ```sh
 python3 scripts/check_repository.py
 python3 scripts/generate_error_catalog.py --check
 ```
 
-Kontroller, takip edilen dosya adlarını, yerel Markdown bağlantılarını ve hata
-kataloğunun güncelliğini denetler.
-[CI](.github/workflows/ci.yml), Java 21/PostgreSQL 16 ile tüm testleri çalıştırır ve JAR paketler.
-[Dependabot](.github/dependabot.yml) haftalık bağımlılık kontrolü yapar.
+These checks inspect tracked file names, local Markdown links, and error catalog
+updates. [CI](.github/workflows/ci.yml) runs all tests with Java 21/PostgreSQL 16
+and builds a JAR. [Dependabot](.github/dependabot.yml) checks dependencies weekly.
 
-## Geliştirme durumu
+## Development status
 
-MVP/pilot aşamasındadır; [üretim kabulü](docs/architecture.md#yayın-ve-üretim-sınırları)
-tamamlanmamıştır. Lisans henüz seçilmemiştir.
+The project is at the MVP/pilot stage. [Production acceptance](docs/architecture.md#release-and-production-limits)
+is not complete. A license has not been selected yet.

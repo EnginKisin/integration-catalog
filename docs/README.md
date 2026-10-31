@@ -1,37 +1,38 @@
-# Backend dokümanları
+# Backend documentation
 
-[Proje README'si](../README.md) hızlı kurulum, adresler ve test komutlarının
-başlangıç noktasıdır. Aşağıdaki belgeler konularına göre ayrılır; aynı sözleşmenin
-ayrıntılarını başka dosyada tekrar etmek yerine ilgili belgeye bağlantı verilir.
-Kod veya API değiştiğinde ilgili belge aynı değişiklikte güncellenmelidir.
+The [project README](../README.md) is the starting point for quick setup, service
+addresses, and test commands. These guides cover separate topics. Link to the
+relevant guide instead of repeating the same API rules in several files.
+Update the related documents whenever the code or API changes.
 
-| Belge | İçerik |
+| Guide | Content |
 |---|---|
-| [Yapılandırma ve işletim](configuration.md) | Docker, env değişiklikleri, IDE, health, volume ve sorun giderme |
-| [Hata sözleşmesi ve katalog](error-codes.md) | İngilizce hata zarfı, kod/endpoint dizini, alan ihlalleri, requestId, 429 ve AI iş hataları |
-| [API sözleşmesi](api-reference.md) | Bütün controller endpoint'leri, yanıtlar, enum'lar ve doğrulamalar |
-| [Frontend entegrasyonu](frontend-integration.md) | Ayrı proje/proxy, oturum/CSRF yardımcısı, ekran akışları ve kabul kontrolleri |
-| [Ortak sistem kataloğu](systems-frontend.md) | Sistem CRUD/aktiflik/kullanım, entegrasyon seçimleri, harita ve ortam filtresi |
-| [Entegrasyon iş akışı](integration-workflow.md) | Oluşturma, config, şema matrisi, DRAFT/COMPLETED ve inceleme |
-| [Payload ve örnek dosyalar](payload-content.md) | Formatlar, bağımsız hedef, upload/download, alan yolları ve DB testleri |
-| [AI eşleme](ai-mapping.md) | Ollama/Gemini kurulumu, asenkron öneri API'si ve kullanıcı onayı |
-| [Giriş ve credential güvenliği](authentication.md) | Roller, oturum, secret izinleri, şifreleme ve eski veri dönüşümü |
-| [Kullanıcı yaşam döngüsü](user-management.md) | Davet, reset, e-posta doğrulama, SMTP ve outbox |
-| [Mimari ve doğrulama](architecture.md) | Veri ilişkileri, transaction'lar, test kapsamı ve üretim sınırları |
+| [Configuration and operations](configuration.md) | Docker, environment changes, IDE setup, health, volumes, and troubleshooting |
+| [Error contract and catalog](error-codes.md) | English error responses, code/endpoint index, field errors, request IDs, 429, and AI job errors |
+| [API reference](api-reference.md) | All controller endpoints, responses, enums, and validation rules |
+| [Frontend integration](frontend-integration.md) | Separate frontend/proxy, session/CSRF helper, screen workflows, and acceptance checks |
+| [Shared system catalog](systems-frontend.md) | System management, active status, usage, integration choices, map, and environment filter |
+| [Integration workflow](integration-workflow.md) | Creation, settings, required schemas, DRAFT/COMPLETED, and review |
+| [Payloads and sample files](payload-content.md) | Formats, independent targets, upload/download, field paths, and database tests |
+| [AI mapping](ai-mapping.md) | Ollama/Gemini setup, asynchronous suggestion API, and user approval |
+| [Authentication and credential security](authentication.md) | Roles, sessions, secret permissions, encryption, and legacy data conversion |
+| [User lifecycle](user-management.md) | Invitations, resets, email verification, SMTP, and the outbox |
+| [Architecture and validation](architecture.md) | Data relationships, transactions, test coverage, and production limits |
 
-Frontend geliştiricisi frontend rehberi → API dizini → ilgili alan sözleşmesi
-sırasını izleyebilir. Kurulum/işletim için yapılandırma belgesi, kapsam ve yayın
-kararları için mimari belgesi kullanılır. Bu repo frontend uygulaması içermez.
+Frontend developers can start with the frontend guide, then the API reference,
+then the guide for the feature they need. Use the configuration guide for setup
+and operations. Use the architecture guide for scope and release decisions.
+This repository does not include a frontend application.
 
-## Kodla karşılaştırma noktaları
+## Where to check the code
 
-- Endpoint ve HTTP yanıtları: `src/main/java/com/company/integration_catalog/controller/`.
-- Alan doğrulamaları: aynı paket kökündeki `dto/` ve controller içindeki request sınıfları.
-- Tamamlama: `validation/IntegrationCompletionValidator.java`.
-- İş kuralları: `service/`, `service/impl/`; yetkilendirme: `security/` ve `config/`.
-- Çalışma ayarları: `src/main/resources/application.properties`, `docker-compose.yml`, `.env.example`, `Dockerfile`.
-- AI sözleşmesi: `ai/AiMappingDtos.java`, `ai/AiMappingService.java` ve sağlayıcı adaptörleri.
+- Endpoints and HTTP responses: `src/main/java/com/company/integration_catalog/controller/`.
+- Field validation: `dto/` under the same package and request classes in controllers.
+- Completion: `validation/IntegrationCompletionValidator.java`.
+- Business rules: `service/` and `service/impl/`; access control: `security/` and `config/`.
+- Runtime settings: `src/main/resources/application.properties`, `docker-compose.yml`, `.env.example`, `Dockerfile`.
+- AI contract: `ai/AiMappingDtos.java`, `ai/AiMappingService.java`, and the provider adapters.
 
-Örneklerdeki ID'ler temsilidir; kendi API yanıtınızdaki ID'leri kullanın.
-Örnek secret ve parolalar üretim değeri değildir. Frontend önerileri uygulanmış
-bir arayüz anlamına gelmez; backend'in sunduğu API üzerine kurulacak davranışı tarif eder.
+IDs in examples are placeholders. Use IDs from your own API responses. Example
+secrets and passwords are not production values. Frontend guidance describes how
+to use the backend API; it does not mean those screens already exist.

@@ -1,33 +1,32 @@
-# Frontend entegrasyon rehberi
+# Frontend integration guide
 
-Bu belge ayrı frontend projesi için bağlantı, oturum, ekran ve hata akışını tanımlar.
-Endpoint ayrıntıları [API dizininde](api-reference.md), entegrasyon yaşam döngüsü
-[iş akışındadır](integration-workflow.md).
+This guide covers connections, sessions, screens, and errors for a separate
+frontend project. See the [API reference](api-reference.md) for endpoint details
+and the [workflow guide](integration-workflow.md) for the integration lifecycle.
 
-İsteğe bağlı “AI ile eşleştir” ekranında JSON, XML ve IDOC arasındaki dokuz çift
-desteklenir. Öneri işi başlatma, durum sorgulama, alan yolları, bağımsız hedef
-örnekleri ve kullanıcı onayıyla ekleme sözleşmesi [AI eşleme rehberindedir](ai-mapping.md).
-AI sağlayıcısı (`ollama`/`gemini`) backend'de seçilir. Frontend aynı endpoint'leri
-kullanır; sağlayıcı/model seçici veya API anahtarı girişi eklemeyin.
-AI önerilerini eski bütün-liste `/mappings/fields` kaydına doğrudan göndermeyin;
-seçilenleri `/mappings/fields/append` ile ekleyin.
+The optional "Map with AI" feature supports all nine JSON/XML/IDOC pairs.
+The [AI guide](ai-mapping.md) covers jobs, polling, field paths, independent target
+samples, and user-approved append. The backend selects `ollama` or `gemini`.
+The frontend uses the same endpoints. Do not add provider/model selection or API
+key inputs. Do not send AI suggestions directly to the legacy full-list
+`/mappings/fields` endpoint. Append selections through `/mappings/fields/append`.
 
-API kökü `/api/v1`'dir. Geliştirmede frontend dev server üzerinden `/api` yollarını
-backend'e proxy edin; üretimde aynı origin altında yayınlayın. Backend'de farklı
-origin'lere izin veren CORS yapılandırması yoktur. `credentials: "include"` tek başına
-farklı origin erişimini açmaz. JWT veya localStorage'da giriş token'ı kullanılmaz.
+The API root is `/api/v1`. In development, proxy `/api` from the frontend dev
+server to the backend. In production, serve both under the same origin.
+The backend has no cross-origin CORS setup. `credentials: "include"` alone does
+not allow cross-origin access. Login does not use JWT or a localStorage token.
 
-## Yerel bağlantı ve frontend projesi
+## Local connection and frontend project
 
-Frontend ayrı repodaysa bu belgelerin hangi backend commit'ine ait olduğunu takip
-edin. Kopya tutuyorsanız backend değiştiğinde yenileyin; `../README.md`,
-`../scripts/` ve `../.github/` yolları backend repo köküne aittir.
-Backend `.env` dosyası ve DB/SMTP/şifreleme/Gemini anahtarları frontend'e taşınmaz.
-Kullanıcı giriş bilgisini formdan alır; tarayıcı ortam değişkenleri secret içermez.
-AI yanıtındaki sağlayıcı/model alanları bilgilendirme metaverisidir.
+If the frontend is in another repository, track which backend commit these guides
+match. Update copied documents when the backend changes. `../README.md`,
+`../scripts/`, and `../.github/` point to the backend repository root.
+Do not copy backend `.env` or database/SMTP/encryption/Gemini keys to the frontend.
+Users enter login credentials in a form. Browser environment variables must not
+contain secrets. AI provider/model response fields are information only.
 
-Backend varsayılan olarak `http://localhost:8080` üzerinde çalışır. Vite kullanılıyorsa
-mevcut `vite.config.ts` içindeki ayarlara aşağıdaki `server` bölümünü ekleyin:
+The backend defaults to `http://localhost:8080`. With Vite, add this `server`
+section to your existing `vite.config.ts`:
 
 ```typescript
 server: {
@@ -42,42 +41,43 @@ server: {
 }
 ```
 
-Bu bir config parçasıdır; dosyanın tamamı değildir. `/api` önekini kaldıran rewrite
-eklemeyin. Tarayıcı istekleri `/api/v1/...` biçiminde göreli olmalıdır; backend'in
-8080 adresine doğrudan fetch yapmayın. APP_PORT değiştirilmişse proxy hedefini eşleştirin.
-Üretimde aynı origin altında `/api` backend'e, uygulama yolları frontend'e gitmelidir.
+This is a config section, not a complete file. Do not add a rewrite that removes
+`/api`. Browser requests should use relative `/api/v1/...` URLs, not fetch the
+backend's port 8080 directly. If APP_PORT changes, update the proxy target.
+In production, route `/api` to the backend and application routes to the frontend
+under the same origin.
 
-Frontend'de `/account/action` rotasını doğrudan URL açılışında da çalıştırın.
-Backend `ACCOUNT_ACTION_URL` bu rotanın tam adresiyle eşleşmelidir; varsayılanı
-`http://localhost:5173/account/action` adresidir. Değişiklik backend container'ına
-yeniden uygulanmalıdır. Gerçek SMTP kullanmak bu frontend sayfasını oluşturmaz.
+Make `/account/action` work when opened directly. Backend `ACCOUNT_ACTION_URL`
+must match its full URL; the default is `http://localhost:5173/account/action`.
+Apply changes to the backend container again. Using real SMTP does not create
+this frontend page.
 
-### İlk oturum ve Swagger
+### First session and Swagger
 
-Başlangıçta `/auth/me` isteğinin 401 dönmesi normaldir; giriş ekranını gösterin.
-İlk admin bootstrap ile oluşturulur; `.env` değişikliği mevcut parolayı değiştirmez.
+A 401 from `/auth/me` before login is normal; show the login screen. Bootstrap
+creates the first admin. Editing `.env` does not change an existing password.
 
-Swagger ve `/v3/api-docs` ADMIN oturumu gerektirir. `localhost:5173` üzerinden
-giriş yapmak, tarayıcıda aynı hostname kullanıldığında `localhost:8080` üzerindeki
-Swagger için de oturum çerezinin kullanılmasına olanak verir; çerezler portla
-ayrılmaz. `localhost` ile `127.0.0.1` adreslerini karıştırmayın. Proxy üzerinden
-Swagger kullanılacaksa `/swagger-ui` ve `/v3/api-docs` yollarını da ayrıca yönlendirin.
-Swagger Authorize düğmesi login akışının yerine geçmez; yazma denemeleri CSRF ister.
+Swagger and `/v3/api-docs` require an ADMIN session. Logging in through
+`localhost:5173` also lets the browser use the cookie for Swagger on
+`localhost:8080`, if the hostname is the same. Cookies are not separated by port.
+Do not mix `localhost` and `127.0.0.1`. To proxy Swagger, also route `/swagger-ui`
+and `/v3/api-docs`. Swagger's Authorize button does not replace login. Writes
+still need CSRF.
 
-## Oturum ve CSRF
+## Sessions and CSRF
 
-1. `GET /api/v1/auth/csrf`: `headerName`, `parameterName`, `token` alın. Tarayıcı çerezi saklar.
-2. Login formunu URL-encoded gövdeyle POST edin; CSRF başlığı ekleyin.
-3. Başarılı login 200 ve boş gövde döner. CSRF'yi yeniden alın, sonra `/auth/me` okuyun.
-4. Her POST/PUT/PATCH/DELETE isteğine CSRF başlığını ekleyin.
-5. Logout 204'tür; istemcide profil/secret state'ini temizleyin. Yeniden girişte yeni CSRF alın.
+1. `GET /api/v1/auth/csrf`: read `headerName`, `parameterName`, and `token`. The browser keeps the cookie.
+2. POST the login form as URL-encoded data with the CSRF header.
+3. Successful login returns 200 with an empty body. Refresh CSRF, then read `/auth/me`.
+4. Add the CSRF header to every POST/PUT/PATCH/DELETE request.
+5. Logout returns 204. Clear profile/secret state in the client and get new CSRF before another login.
 
-Anonim davet/parola sıfırlama/e-posta doğrulama POST istekleri de CSRF gerektirir.
-HttpOnly çerez JavaScript'ten okunmaz. Hareketsizlik süresi 30 dakikadır; sunucu
-yeniden başladığında veya hesap oturumları iptal edildiğinde tekrar giriş gerekir.
+Anonymous invitation/password-reset/email-verification POST requests also need
+CSRF. JavaScript cannot read the HttpOnly cookie. The idle timeout is 30 minutes.
+Users must log in again after a server restart or account session invalidation.
 
-Aşağıdaki TypeScript örneği aynı origin/proxy içindir. Boş başarılı yanıtları JSON
-olarak okumaz ve başarısız yazma isteklerini otomatik tekrarlamaz:
+This TypeScript example uses the same origin/proxy. It does not parse empty
+success responses as JSON or automatically retry failed writes:
 
 ```typescript
 type Csrf = { headerName: string; parameterName: string; token: string };
@@ -87,7 +87,7 @@ export async function refreshCsrf(): Promise<void> {
   const response = await fetch('/api/v1/auth/csrf', {
     credentials: 'include', cache: 'no-store'
   });
-  if (!response.ok) throw new Error(`CSRF alınamadı: ${response.status}`);
+  if (!response.ok) throw new Error(`Could not get CSRF token: ${response.status}`);
   csrf = await response.json();
 }
 
@@ -107,7 +107,7 @@ export async function api<T = void>(path: string, init: RequestInit = {}): Promi
     try { body = JSON.parse(text); } catch { body = text; }
   }
   if (!response.ok) {
-    throw Object.assign(new Error(`İstek başarısız: ${response.status}`), {
+    throw Object.assign(new Error(`Request failed: ${response.status}`), {
       status: response.status, body, retryAfter: response.headers.get('Retry-After')
     });
   }
@@ -130,19 +130,23 @@ export async function logout(): Promise<void> {
   finally { csrf = undefined; }
 }
 
-// JSON isteği örneği:
-// await api('/systems', {
-//   method: 'POST', headers: { 'Content-Type': 'application/json' },
-//   body: JSON.stringify({ name: 'ERP', description: 'Sipariş sistemi' })
-// });
 ```
 
-Login ve kimlik değişikliği isteklerini aynı anda başlatmayın. Örnek yardımcı
-üretim uygulamasındaki state yönetimi ve hata ekranının yerine geçmez.
-Frontend'in istek iptal süresi, backend işleminin geri alındığı anlamına gelmez;
-bağlantı kesilmesinde yazmayı tekrar göndermeden önce güncel kaydı okuyun.
+Example JSON request:
 
-`GET /auth/me` örneği:
+```typescript
+await api('/systems', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'ERP', description: 'Order system' })
+});
+```
+
+Do not start login and identity-changing requests at the same time. This helper
+does not replace production state management or error screens. A client timeout
+does not mean the backend rolled back its work. After a lost connection, read the
+current record before sending a write again.
+
+Example `GET /auth/me`:
 
 ```json
 {
@@ -155,165 +159,157 @@ bağlantı kesilmesinde yazmayı tekrar göndermeden önce güncel kaydı okuyun
 }
 ```
 
-Roller burada `ROLE_` öneki taşır; kullanıcı yönetimi gövdelerinde `EDITOR` gibi
-önek olmadan gönderilir. Bootstrap/eski hesaplarda email null olabilir.
-Butonları role göre gösterin; backend her istekte yetkiyi ayrıca denetler.
-ADMIN credential okuma/yazma yetkisine doğrudan sahiptir; `permissions` listesinde
-ayrıca yazmıyor diye ADMIN düğmelerini gizlemeyin. Diğer kullanıcılar için görüntüleme
-`VIEW_CREDENTIALS`, değiştirme EDITOR + `MANAGE_CREDENTIALS` gerektirir.
+Roles here have the `ROLE_` prefix. User management bodies use values such as
+`EDITOR` without the prefix. Bootstrap/legacy accounts may have null email.
+Show buttons based on roles; the backend still checks access on every request.
+ADMIN has credential read/write access directly. Do not hide ADMIN buttons just
+because the permission is not listed in `permissions`. Other users need
+`VIEW_CREDENTIALS` to reveal values and EDITOR + `MANAGE_CREDENTIALS` to change them.
 
-## Ekranlar ve veri yükleme
+## Screens and data loading
 
-| Ekran | İstek / davranış |
+| Screen | Request / behavior |
 |---|---|
-| Entegrasyon listesi | `GET /integrations?keyword=...`; dizi döner, sayfalama yok |
-| Katalog yönetimi | `/systems`; `active`, `usageCount` göster |
-| Oluşturma / temel bilgi | Aktif sistem listeleri; POST oluşturma, PUT tam güncelleme |
-| Entegrasyon detayı | `GET /integrations/{id}`; sistem ID/adları ve environmentTypes doğrudan yanıtta |
-| Ortam ayarları | Detaydaki `environmentConfigs`; POST ile tüm config listesi |
-| Şema / mapping | Ayrı GET schemas ve GET fields; POST ile şema upsert / tüm çizgileri kaydet |
-| Payload / dosya örneği | XML/IDOC metin veya upload + alan ağacı; CSV/Excel yalnızca örnek dosya; [sözleşme](payload-content.md) |
-| Gözden geçirme | `reviewRequired=true` ise inceleme onayı, ardından complete |
-| Kullanıcı yönetimi | ADMIN; `/users?page=0&size=20`, davet, rol, aktiflik, izin, oturum iptali |
-| Profil / hesap işlemleri | Parola değişimi, e-posta bağlama/değişimi ve doğrulama sayfası |
+| Integration list | `GET /integrations?keyword=...`; returns an array without pagination |
+| Catalog management | `/systems`; show `active` and `usageCount` |
+| Create / basic information | Active system lists; POST to create, PUT for full updates |
+| Integration detail | `GET /integrations/{id}`; includes system IDs/names and environmentTypes |
+| Environment settings | Detail `environmentConfigs`; POST the whole config list |
+| Schema / mapping | Separate GET schemas/fields; POST to create/update a schema or save the whole connection list |
+| Payload / sample file | XML/IDOC text or upload with a field tree; CSV/Excel sample files only; [contract](payload-content.md) |
+| Review | Confirm when `reviewRequired=true`, then complete |
+| User management | ADMIN; `/users?page=0&size=20`, invitations, roles, active state, permissions, and session revocation |
+| Profile / account actions | Password change, email linking/change, and verification page |
 
-Detay için önce entegrasyon GET yapın. Olmayan entegrasyonun GET schemas isteği
-404 döner; GET fields isteği boş liste döndürebilir. Alan eşleme listesinden
-entegrasyonun varlığına karar vermeyin.
-PUT gövdesine yalnızca request alanlarını koyun. Kaydetme sonrası detay ve ilgili
-alt listeleri yeniden okuyun; bazı başarılı kayıtlar boş gövde döner.
-Ara katman ekleme/kaldırma sonrasında güncel akışa uygun ilk başarılı örnek kaydı,
-eski akışın uyumsuz şemalarını ve bağlı alan eşlemelerini aynı transaction'da
-temizler. Metin veya dosya kaydı sonrasında schemas ve fields listelerini yeniden
-okuyun. Başarısız kayıt eski örnekleri ve eşlemeleri korur.
-Entegrasyon tarihleri offset içermeyen sunucu yerel `LocalDateTime` değerleridir;
-`updatedAt` null olabilir. Bunlara istemcide kendiliğinden `Z` eklemeyin.
+Load integration details first. For a missing integration, GET schemas returns
+404, but GET fields may return an empty list. Do not infer integration existence
+from field mappings alone. PUT bodies should include request fields only.
+After saving, reload details and affected lists. Some successful writes have
+empty responses. After adding/removing middleware, the first successful sample
+save for the new flow removes incompatible old schemas and their mappings in
+one transaction. Reload schemas/fields after text or file saves. Failed saves
+keep old samples/mappings. Integration dates are server-local `LocalDateTime`
+values without an offset; `updatedAt` can be null. Do not add `Z` automatically.
 
-Pasif mevcut seçimi düzenleme ekranında koruyun; aktif listede yok diye null
-göndermeyin. Silme için usageCount yalnızca UI yardımıdır; kararın son kontrolü
-backend'dedir. [İş akışı](integration-workflow.md) ve [sistem kuralları](systems-frontend.md)
-ekranların temel sözleşmesidir.
+Keep current inactive selections in edit forms. Do not send null only because a
+system is absent from the active list. `usageCount` helps the UI, but the backend
+makes the final deletion check. The [workflow](integration-workflow.md) and
+[system rules](systems-frontend.md) define screen behavior.
 
-Dosya yüklerken `FormData` içinde `metadata` (`application/json` Blob) ve `file`
-gönderin; multipart `Content-Type` başlığını tarayıcı oluştursun. Yukarıdaki
-`api()` yardımcısı yanıtı text/JSON okur; ikili örnek dosya indirmek için oturum
-çereziyle ayrı `fetch` ve `response.blob()` kullanın. GET indirme CSRF istemez.
-CSV/Excel kayıtlarında `mappingSupported=false` olduğundan eşleme araçları
-gösterilmez; bir eşleme çiftinin iki ucu da bu desteğe sahip olmalıdır.
+For uploads, send `metadata` as an `application/json` Blob and `file` in `FormData`.
+Let the browser set multipart Content-Type. The `api()` helper above reads text/JSON.
+For binary downloads, use a separate cookie-authenticated `fetch` with
+`response.blob()`. GET downloads do not need CSRF. Hide mapping tools for
+CSV/Excel because `mappingSupported=false`. Both ends of a mapping pair must support mapping.
 
-Ortak sistem seçimi, haritada düğüm tekilleştirme ve ortam filtresi için
-[frontend sistem sözleşmesini](systems-frontend.md) kullanın.
+Use the [frontend system contract](systems-frontend.md) for shared system choices,
+unique map nodes, and environment filtering.
 
-## Alan eşleme ekranı
+## Field mapping screen
 
-Doğrudan mapping iki ucu aynı şema ID'sine bağlar; kaynak tarafında
-`format/schemaDefinition/samplePayload/rawContent`, bağımsız hedef tarafında
-`targetFormat/targetSchemaDefinition/targetSamplePayload/targetRawContent` kullanılır.
-Ara katmanlı akışta hedef ayrı şema kaydıdır. Desteklenen çiftler JSON/XML/IDOC
-arasında bağımsız seçilir; alan yollarını [AI sözleşmesine](ai-mapping.md) göre üretin.
+Direct mappings use the same schema ID for both ends. The source side uses
+`format/schemaDefinition/samplePayload/rawContent`; the independent target uses
+`targetFormat/targetSchemaDefinition/targetSamplePayload/targetRawContent`.
+Middleware flows have a separate target schema record. JSON/XML/IDOC formats can
+be chosen independently. Build field paths according to the [AI contract](ai-mapping.md).
 
-XML/IDOC alan yolu varlığı kontrol edilir. JSON'da kaynak örneği veya bağımsız hedef
-tanımı/örneği varsa tam liste kaydı da yol varlığını kontrol eder; kaynak örneği
-bulunmayan JSON taraflarında bu eski endpoint'in kontrolü sınırlıdır. AI job/append akışı
-normalize alan yollarını doğrular; model önerilerinde tip/dizi uyumu ayrıca
-denetlenir. Manuel bağlantılar için otomatik tip dönüşümü veya anlamsal doğruluk
-garantisi verilmez.
+XML/IDOC paths are checked for existence. Full-list JSON saves also check paths
+when a source sample or independent target definition/sample exists. The legacy
+endpoint has limited checks for JSON source sides without samples. AI job/append
+checks normalized paths. Model suggestions also pass type/array checks. Manual
+connections do not guarantee automatic type conversion or semantic correctness.
 
-## Erişim bilgileri ekranı
+## Credentials screen
 
-Normal config yanıtta yalnızca `credentialsConfigured` vardır. Form ilk açıldığında
-secret alma isteği göndermeyin. Maskeyi gerçek parola gibi gövdeye koymayın.
+Normal config responses include only `credentialsConfigured`. Do not fetch
+secrets when the form first opens. Do not submit mask characters as a password.
 
-- Mevcut bilgiyi koruma: `authCredentials` alanını göndermeyin veya null gönderin;
-  aynı ortam/hedef/auth türü kalmalıdır.
-- Yeni bilgi: izin varsa dolu JSON map gönderin; eski map tamamen değişir.
-- Temizleme: `authType=NONE`; `{}` geçerli temizleme gövdesi değildir.
-- Görüntüleme: kullanıcı “Göster” dediğinde `GET /integrations/{id}/configs/DEV/DESTINATION/credentials`.
-  Yanıt `{"authCredentials":{...}}`; `Cache-Control: no-store` içerir.
+- Keep credentials: omit `authCredentials` or send null, keeping the same environment/target/auth type.
+- Replace credentials: if allowed, send a nonempty JSON map; it replaces the whole old map.
+- Clear credentials: use `authType=NONE`; `{}` is not a valid clear request.
+- Reveal credentials: only when the user selects "Show", GET `/integrations/{id}/configs/DEV/DESTINATION/credentials`.
+  The response is `{"authCredentials":{...}}` with `Cache-Control: no-store`.
 
-Backend BASIC_AUTH/OAUTH2/API_KEY için zorunlu map anahtarlarını tanımlamaz.
-Örneğin username/password veya apiKey formu oluşturulacaksa bunun frontend
-sözleşmesi ayrıca belirlenmelidir; backend bu alanların anlamsal doğrulamasını yapmaz.
-Görüntülenen değerleri sadece geçici component state'inde tutun; önerilen davranış
-30 saniye sonra, ekran kapanınca ve logout'ta gizleyip temizlemektir. Bu süre frontend
-önerisidir; backend'de görünürlük sayacı veya yeniden parola sorma/MFA akışı yoktur.
-Secret'ları localStorage, URL, analytics veya uygulama loglarına yazmayın.
+The backend does not define required map keys for BASIC_AUTH/OAUTH2/API_KEY.
+A username/password or apiKey form therefore needs an agreed frontend contract;
+the backend does not validate those keys semantically. Keep revealed values only
+in temporary component state. Suggested behavior is to hide/clear them after
+30 seconds, when closing the screen, and on logout. That delay is frontend advice,
+not a backend timer. There is no backend password recheck/MFA flow for revealing.
+Do not put secrets in localStorage, URLs, analytics, or application logs.
 
-## E-posta bağlantısı sayfası
+## Email link page
 
-`ACCOUNT_ACTION_URL` sayfasına bağlantı fragment ile gelir:
-`#purpose=INVITATION&token=...`. `window.location.hash` değerini okuyun;
-`URLSearchParams` ile ayrıştırıp token'ı yalnızca bellekte tutun ve
-`history.replaceState` ile fragment'ı adres çubuğundan temizleyin.
-Token'ı temizledikten sonra sayfa yenilenirse kullanıcı bağlantıyı yeniden açmalıdır.
-Otomatik GET ile token tüketmeyin; kullanıcı onayıyla CSRF'li POST gönderin.
+Links to `ACCOUNT_ACTION_URL` use a fragment:
+`#purpose=INVITATION&token=...`. Read `window.location.hash`, parse it with
+`URLSearchParams`, keep the token only in memory, and clear the fragment with
+`history.replaceState`. Reloading after clearing it requires reopening the link.
+Do not consume tokens with automatic GET requests. Send a CSRF-protected POST
+after user approval.
 
-| purpose | Ekran / POST |
+| purpose | Screen / POST |
 |---|---|
-| `INVITATION` | Yeni parola; `/auth/invitations/accept` `{token,newPassword}` |
-| `PASSWORD_RESET` | Yeni parola; `/auth/password-reset/confirm` `{token,newPassword}` |
-| `EMAIL_CHANGE` | Adres onayı; `/auth/email/confirm` `{token}` |
+| `INVITATION` | New password; `/auth/invitations/accept` `{token,newPassword}` |
+| `PASSWORD_RESET` | New password; `/auth/password-reset/confirm` `{token,newPassword}` |
+| `EMAIL_CHANGE` | Address confirmation; `/auth/email/confirm` `{token}` |
 
-Başarı 204'tür. Davet ve reset sonrası kullanıcı normal giriş yapar.
-Süresi dolmuş/kullanılmış bağlantı 400'dür; davet için ADMIN yeniden gönderir,
-reset için kullanıcı yeniden talep eder. Parola unutma talebinde her adres için
-aynı bilgilendirmeyi gösterin; 202 postanın ulaştığı anlamına gelmez.
-Hesap politikaları ve tam endpoint listesi [kullanıcı yönetimindedir](user-management.md).
+Success returns 204. After invitation/reset, users log in normally. Expired/used
+links return 400. ADMIN resends invitations; users request another reset.
+Forgot-password requests should show the same notice for every address. A 202
+does not prove email delivery. See [user management](user-management.md) for
+account policies and all endpoints.
 
-## Hataları ele alma
+## Error handling
 
-Backend mesajları İngilizcedir. Kullanıcıya gösterilen metni `code` üzerinden,
-alan ve tamamlama hatalarını `violations[].code` + `params` üzerinden yerelleştirin.
-`message` ve `details` güvenli yedek açıklamalardır; davranış belirlemek için
-ayrıştırmayın. Bilinmeyen kodda frontend'in genel hata mesajını kullanın.
+Backend messages are English. Localize user text with `code`, and field/completion
+errors with `violations[].code` plus `params`. `message` and `details` are safe
+fallback explanations, not behavior identifiers. Use your own generic error text
+for an unknown code.
 
-| HTTP | İstemci davranışı |
+| HTTP | Client behavior |
 |---|---|
-| 400 | `VALIDATION_FAILED` ise bütün alan ihlallerini ilgili input altında göster; diğer kodlar istek/gövde hatasını belirtir |
-| 401 | `AUTH_REQUIRED`, `INVALID_CREDENTIALS` veya `SESSION_INVALID` koduna göre giriş akışını yönet |
-| 403 | `ACCESS_DENIED`, credential izni ve `CSRF_MISSING`/`CSRF_INVALID` durumlarını ayır |
-| 404 | Kayıt bulunamadı; ilgili kaynağın koduna göre mesaj seç |
-| 409 | İş kuralını kodla göster; `INTEGRATION_INCOMPLETE` için kodlu ihlalleri listele |
-| 410 | AI sonucu süresi dolmuş; yeni öneri iste |
-| 413 | İçerik/bütçe sınırı; ilgili kodu ve varsa limit parametrelerini kullan |
-| 422 | AI veya şema/alan doğrulama koduna göre girdiyi düzelt |
-| 429 | Her zaman gelen `Retry-After` saniyesi kadar bekle; bu süre başarı garantisi değildir |
-| 500 / 503 | Genel hata/geçici servis mesajını göster; destek için `requestId` sakla |
+| 400 | For `VALIDATION_FAILED`, show all field errors under the relevant inputs; other codes describe request/body errors |
+| 401 | Handle login through `AUTH_REQUIRED`, `INVALID_CREDENTIALS`, or `SESSION_INVALID` |
+| 403 | Separate `ACCESS_DENIED`, credential permission, and `CSRF_MISSING`/`CSRF_INVALID` |
+| 404 | Show the relevant resource-not-found message |
+| 409 | Use the business-rule code; list coded violations for `INTEGRATION_INCOMPLETE` |
+| 410 | AI result expired; request new suggestions |
+| 413 | Content/budget limit; use the code and available limit parameters |
+| 422 | Correct AI/schema/field input based on the code |
+| 429 | Wait for the supplied `Retry-After` seconds; this does not guarantee success |
+| 500 / 503 | Show a general/temporary-service error; keep `requestId` for support |
 
-`X-Request-ID` her yanıtta bulunur; HTTP hata gövdesindeki `requestId` aynı
-değerdir. İş durumu HTTP 200 dönse bile AI `status=FAILED`/`EXPIRED` olabilir;
-`errorCode` okunmalıdır. Bu durumda başarılı durum sorgusu için `Retry-After`
-beklenmez; çalışan işler `pollAfterMs` aralığında sorgulanır.
+Every response has `X-Request-ID`. HTTP error body `requestId` is the same value.
+AI status can be FAILED/EXPIRED even with HTTP 200, so read `errorCode`. A successful
+status GET does not need Retry-After. Poll running jobs at `pollAfterMs` intervals.
 
-[Ortak hata sözleşmesi](error-codes.md), [tam kod dizini](error-code-index.md)
-ve [örnek yanıt kataloğu](error-catalog.json) istemci için esas kaynaklardır.
+The [shared error contract](error-codes.md), [full code index](error-code-index.md),
+and [example catalog](error-catalog.json) are the client's main references.
 
-Teknik seçim değiştiğinde kullanıcı config/şema/eşlemeyi gözden geçirip incelemeyi
-onaylar; ardından complete çağırır. Eski config/mapping kayıtları ETag/If-Match
-veya beklenen sürüm almaz. AI context/job/append ise eski `contextRevision` ile
-kaydı reddeder.
+After technical choices change, the user reviews configs/schemas/mappings,
+confirms review, and calls complete. Legacy config/mapping saves do not accept
+ETag/If-Match or an expected version. AI context/job/append rejects an old
+`contextRevision`.
 
-## Frontend kabul kontrolleri
+## Frontend acceptance checks
 
-- Giriş, yanlış parola, sayfa yenilemede oturum kontrolü ve çıkış çalışır.
-- Oturum bittiğinde 401/CSRF kaynaklı 403 ele alınır; yazmalar otomatik tekrarlanmaz.
-- VIEWER, EDITOR ve ADMIN ekran eylemleri ile credential izinleri ayrı doğrulanır.
-- Katalog oluşturma/güncelleme, pasif mevcut seçimi koruma ve kullanılan kaydın
-  silinememesi ele alınır.
-- Entegrasyon oluşturma → config → şema → isteğe bağlı mapping → tamamlama çalışır;
-  409 kodlu `violations` listesi yerelleştirilerek gösterilir. Dört akışın zorunlu şema matrisi kontrol edilir.
-- Config/field kaydının tüm listeyi değiştirdiği dikkate alınır; tek satır kaydetme
-  diğer satırları yanlışlıkla silmez. Maskelenmiş secret gövdeye gönderilmez.
-- XML/IDOC alan ağacı ve yol hataları, CSV/Excel'de eşleme kapatma, multipart
-  yükleme, dosya indirme ve 413 boyut hataları uygulanır.
-- AI önerilerinde manuel bağlantılar korunur; öneri düzenleme/silme/onay, durum
-  sorgulama, eski bağlam ve sağlayıcı hatasında manuel kullanım ele alınır.
-- Teknik değişiklik sonrası inceleme ve yeniden tamamlama akışı uygulanır;
-  güncel akışa uygun ilk başarılı örnek kaydı eski topolojinin uyumsuz şemalarını
-  ve bağlı eşlemeleri temizlediği için schemas ve fields listeleri yeniden okunur.
-- Davet, parola sıfırlama ve e-posta onayı bağlantıları doğrudan açılır;
-  fragment temizlenir, CSRF'li POST yapılır, süre/kullanım hataları gösterilir.
-- 200 boş, 201 JSON, 202 boş/JSON ve 204 boş yanıtlar doğru işlenir.
+- Login, wrong password, session checks after refresh, and logout work.
+- Handle 401/CSRF-related 403 after expiry; writes are not retried automatically.
+- Check VIEWER, EDITOR, and ADMIN actions separately from credential permissions.
+- Handle catalog create/update, keeping current inactive selections, and blocking in-use deletion.
+- Creation → config → schema → optional mapping → completion works. Localize 409
+  `violations`. Check required schemas for all four flow types.
+- Config/field saves replace whole lists. Saving one row must not accidentally
+  delete others. Masked secrets must not be submitted.
+- Support XML/IDOC trees/path errors, disabled CSV/Excel mapping, multipart upload,
+  file download, and 413 size errors.
+- Keep manual connections during AI suggestions. Handle suggestion edit/remove/approval,
+  polling, stale context, and manual work after provider failure.
+- Support review/recompletion after technical changes. Reload schemas/fields after
+  the first successful current sample save because it cleans up old-flow data.
+- Invitation/reset/email links work when opened directly. Clear fragments, POST
+  with CSRF, and show expiry/reuse errors.
+- Handle empty 200, JSON 201, empty/JSON 202, and empty 204 responses correctly.
 
-Bu liste frontend kabulü için kullanılmalıdır. Backend testlerinin kapsamı
-[mimari belgesindedir](architecture.md#test-kapsamı-ve-doğrulama-yöntemi).
+Use this list for frontend acceptance. See the [architecture guide](architecture.md#test-coverage-and-validation-methods)
+for backend test coverage.

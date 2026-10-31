@@ -1,192 +1,195 @@
-# API sözleşmesi ve endpoint dizini
+# API contract and endpoint index
 
-Yerel API kökü `http://localhost:8080/api/v1`. Aşağıdaki yollar bu köke göredir.
-JSON yazmalarda `Content-Type: application/json`; login form-urlencoded'dır.
-Başarılı yanıtlar ortak `data` zarfına sarılmaz. Bütün değişikliklerde CSRF gerekir.
-Rol/credential ayrıntıları [yetkilendirme belgesindedir](authentication.md).
+The local API root is `http://localhost:8080/api/v1`. Paths below are relative to
+this root. JSON writes use `Content-Type: application/json`; login uses form data.
+Successful responses do not have a shared `data` wrapper. All changes require CSRF.
+See [authentication](authentication.md) for roles and credential permissions.
 
-## Giriş ve kullanıcılar
+## Authentication and users
 
-| Metot / yol | Başarı yanıtı | Erişim |
+| Method / path | Success response | Access |
 |---|---|---|
-| GET `/auth/csrf` | 200 `{headerName,parameterName,token}` | Herkes |
-| POST `/auth/login` | 200 boş | Herkes + CSRF |
-| POST `/auth/logout` | 204 boş | CSRF |
-| GET `/auth/me` | 200 profil | Oturum |
+| GET `/auth/csrf` | 200 `{headerName,parameterName,token}` | Public |
+| POST `/auth/login` | 200 empty | Public + CSRF |
+| POST `/auth/logout` | 204 empty | CSRF |
+| GET `/auth/me` | 200 profile | Session |
 | GET `/users?page=0&size=20` | 200 `{items,page,size,totalElements,totalPages}` | ADMIN |
-| POST `/users` | 201 kullanıcı | ADMIN |
-| PUT `/users/{id}/active` | 200 kullanıcı | ADMIN |
-| PUT `/users/{id}/role` | 200 kullanıcı | ADMIN |
-| PUT `/users/{id}/permissions` | 200 kullanıcı | ADMIN |
-| POST `/users/{id}/invitations/resend` | 202 boş | ADMIN |
-| POST `/users/{id}/password-reset` | 202 boş | ADMIN |
-| POST `/users/{id}/sessions/revoke` | 204 boş | ADMIN |
+| POST `/users` | 201 user | ADMIN |
+| PUT `/users/{id}/active` | 200 user | ADMIN |
+| PUT `/users/{id}/role` | 200 user | ADMIN |
+| PUT `/users/{id}/permissions` | 200 user | ADMIN |
+| POST `/users/{id}/invitations/resend` | 202 empty | ADMIN |
+| POST `/users/{id}/password-reset` | 202 empty | ADMIN |
+| POST `/users/{id}/sessions/revoke` | 204 empty | ADMIN |
 | GET `/users/mail-status` | 200 `{pending,failed}` | ADMIN |
-| POST `/auth/invitations/accept` | 204 boş | Geçerli token |
-| POST `/auth/password-reset/request` | 202 `{message}` | Herkes |
-| POST `/auth/password-reset/confirm` | 204 boş | Geçerli token |
-| POST `/auth/password/change` | 204 boş | Oturum + mevcut parola |
-| POST `/auth/email/change` | 202 boş | Oturum + mevcut parola |
-| POST `/auth/email/confirm` | 204 boş | Geçerli token |
+| POST `/auth/invitations/accept` | 204 empty | Valid token |
+| POST `/auth/password-reset/request` | 202 `{message}` | Public |
+| POST `/auth/password-reset/confirm` | 204 empty | Valid token |
+| POST `/auth/password/change` | 204 empty | Session + current password |
+| POST `/auth/email/change` | 202 empty | Session + current password |
+| POST `/auth/email/confirm` | 204 empty | Valid token |
 
-Kullanıcı yanıtı `id, username, email, emailVerified, active, passwordResetRequired,
-role, permissions` alanlarını taşır. Detay GET kullanıcı endpoint'i, açık kayıt ve
-kullanıcı DELETE endpoint'i yoktur. Kullanıcı listesi ID sıralıdır; sayfa sıfırdan
-başlar, size 1–100. Gövde örnekleri ve token süreleri [kullanıcı yönetimindedir](user-management.md).
-Login/logout filtrelerle uygulanır; Swagger'da controller endpoint'i olarak
-görünmelerine veya Swagger Authorize düğmesinin giriş yapmasına güvenmeyin.
-`GET /auth/me` profili `username,email,emailVerified,active,authorities,permissions`
-alanlarını döndürür. `authorities` değerleri `ROLE_ADMIN` gibi `ROLE_` öneki taşır.
+User responses contain `id, username, email, emailVerified, active,
+passwordResetRequired, role, permissions`. There is no single-user detail GET,
+public signup, or user DELETE endpoint. The user list is ordered by ID. Pages
+start at zero and size is 1–100. See [user management](user-management.md) for
+request bodies and token lifetimes.
+Login/logout are handled by filters. Do not expect them to appear as controller
+endpoints in Swagger, or expect the Swagger Authorize button to log you in.
+`GET /auth/me` returns `username,email,emailVerified,active,authorities,permissions`.
+Authority values have the `ROLE_` prefix, such as `ROLE_ADMIN`.
 
-## Ortak kataloglar
+## Shared catalogs
 
-Ortak katalog `/systems` altındadır; sistemin kaynak/hedef/ara katman rolü entegrasyonda belirlenir.
+The shared catalog is under `/systems`. Each integration assigns the source,
+target, or middleware role to a system.
 
-| Metot / yol | Başarı yanıtı | Erişim |
+| Method / path | Success response | Access |
 |---|---|---|
-| GET `/systems` veya `/systems?active=true/false` | 200 DTO dizisi | VIEWER / EDITOR / ADMIN |
+| GET `/systems` or `/systems?active=true/false` | 200 DTO array | VIEWER / EDITOR / ADMIN |
 | GET `/systems/{id}` | 200 DTO | VIEWER / EDITOR / ADMIN |
 | POST `/systems` | 201 DTO | EDITOR / ADMIN |
 | PUT `/systems/{id}` | 200 DTO | EDITOR / ADMIN |
 | PATCH `/systems/{id}/active` | 200 DTO | EDITOR / ADMIN |
-| DELETE `/systems/{id}` | 204 boş | ADMIN; kullanım sıfır olmalı |
+| DELETE `/systems/{id}` | 204 empty | ADMIN; usage must be zero |
 
-DTO: `id,name,description,active,usageCount`. POST/PUT gövdesi `{name,description}`;
-PATCH gövdesi `{active}`. Listelerde sayfalama yoktur; aktiflik filtresi verilmezse
-pasifler de döner. Ad/açıklama benzersizliğini frontend varsaymamalıdır.
+DTO: `id,name,description,active,usageCount`. POST/PUT body: `{name,description}`;
+PATCH body: `{active}`. Lists are not paginated. Without an active filter, inactive
+systems are included. The frontend must not assume names or descriptions are unique.
 
-## Entegrasyonlar ve mapping
+## Integrations and mappings
 
-| Metot / yol | Başarı yanıtı | Erişim |
+| Method / path | Success response | Access |
 |---|---|---|
-| GET `/integrations?keyword=...` | 200 DTO dizisi | VIEWER / EDITOR / ADMIN |
+| GET `/integrations?keyword=...` | 200 DTO array | VIEWER / EDITOR / ADMIN |
 | GET `/integrations/{id}` | 200 DTO | VIEWER / EDITOR / ADMIN |
 | POST `/integrations` | 201 DTO | EDITOR / ADMIN |
 | PUT `/integrations/{id}` | 200 DTO | EDITOR / ADMIN |
-| DELETE `/integrations/{id}` | 204 boş | ADMIN |
-| POST `/integrations/{id}/configs` | 200 boş | EDITOR / ADMIN; secret değişikliği ek izinli |
+| DELETE `/integrations/{id}` | 204 empty | ADMIN |
+| POST `/integrations/{id}/configs` | 200 empty | EDITOR / ADMIN; secret changes need extra permission |
 | POST `/integrations/{id}/review/confirm` | 200 DTO | EDITOR / ADMIN |
-| PATCH `/integrations/{id}/complete` | 200 boş | EDITOR / ADMIN |
-| GET `/integrations/{id}/mappings/schemas` | 200 şema dizisi | VIEWER / EDITOR / ADMIN |
-| POST `/integrations/{id}/mappings/schemas` | 200 şema | EDITOR / ADMIN |
-| POST `/integrations/{id}/mappings/schemas/upload` | 200 şema; multipart metadata + file | EDITOR / ADMIN |
-| GET `/integrations/{id}/mappings/schemas/{schemaId}/sample` | 200 dosya; yoksa 404 | VIEWER / EDITOR / ADMIN |
-| GET `/integrations/{id}/mappings/fields` | 200 eşleme dizisi | VIEWER / EDITOR / ADMIN |
-| POST `/integrations/{id}/mappings/fields` | 200 boş | EDITOR / ADMIN |
-| GET `/integrations/{id}/configs/{environment}/{target}/credentials` | 200 `{authCredentials}` | ADMIN veya VIEW_CREDENTIALS |
+| PATCH `/integrations/{id}/complete` | 200 empty | EDITOR / ADMIN |
+| GET `/integrations/{id}/mappings/schemas` | 200 schema array | VIEWER / EDITOR / ADMIN |
+| POST `/integrations/{id}/mappings/schemas` | 200 schema | EDITOR / ADMIN |
+| POST `/integrations/{id}/mappings/schemas/upload` | 200 schema; multipart metadata + file | EDITOR / ADMIN |
+| GET `/integrations/{id}/mappings/schemas/{schemaId}/sample` | 200 file; 404 if absent | VIEWER / EDITOR / ADMIN |
+| GET `/integrations/{id}/mappings/fields` | 200 mapping array | VIEWER / EDITOR / ADMIN |
+| POST `/integrations/{id}/mappings/fields` | 200 empty | EDITOR / ADMIN |
+| GET `/integrations/{id}/configs/{environment}/{target}/credentials` | 200 `{authCredentials}` | ADMIN or VIEW_CREDENTIALS |
 
-## AI önerileri ve güvenli ekleme
+## AI suggestions and safe append
 
-| Metot / yol | Başarı yanıtı | Erişim |
+| Method / path | Success response | Access |
 |---|---|---|
 | GET `/integrations/{id}/mappings/context` | 200 `{contextRevision,schemas,mappings}` | VIEWER / EDITOR / ADMIN |
-| GET `/integrations/{id}/mappings/ai/capabilities` | 200 kullanılabilirlik / sağlayıcı / formatlar | VIEWER / EDITOR / ADMIN |
-| POST `/integrations/{id}/mappings/ai/jobs` | 202 iş; `Idempotency-Key` zorunlu | EDITOR / ADMIN |
-| GET `/integrations/{id}/mappings/ai/jobs/{jobId}` | 200 iş durumu | VIEWER / EDITOR / ADMIN |
-| GET `/integrations/{id}/mappings/ai/jobs/{jobId}/result` | 200 öneriler / eşleşmeyen alanlar | VIEWER / EDITOR / ADMIN |
-| POST `/integrations/{id}/mappings/fields/append` | 200 eklenen bağlantılar / yeni bağlam; `Idempotency-Key` zorunlu | EDITOR / ADMIN |
+| GET `/integrations/{id}/mappings/ai/capabilities` | 200 availability / provider / formats | VIEWER / EDITOR / ADMIN |
+| POST `/integrations/{id}/mappings/ai/jobs` | 202 job; `Idempotency-Key` required | EDITOR / ADMIN |
+| GET `/integrations/{id}/mappings/ai/jobs/{jobId}` | 200 job status | VIEWER / EDITOR / ADMIN |
+| GET `/integrations/{id}/mappings/ai/jobs/{jobId}/result` | 200 suggestions / unmatched fields | VIEWER / EDITOR / ADMIN |
+| POST `/integrations/{id}/mappings/fields/append` | 200 added connections / new context; `Idempotency-Key` required | EDITOR / ADMIN |
 
-Job/append beklenen `contextRevision` alır; eski bağlam 409, henüz hazır olmayan
-sonuç 409, süresi dolan sonuç 410 döner. AI işi başarısız olursa durum GET'i 200
-ve `status=FAILED` döner. Tam istek/yanıtlar ve hata kodları [AI sözleşmesindedir](ai-mapping.md).
-Sağlayıcı/model ve Gemini anahtarı backend ayarıdır; frontend isteğinden seçilmez.
+Job/append requests include the expected `contextRevision`. An old context returns
+409; a result that is not ready returns 409; an expired result returns 410. If an
+AI job fails, the status GET returns 200 with `status=FAILED`. See the [AI contract](ai-mapping.md)
+for full requests, responses, and error codes. Provider/model selection and the
+Gemini key are backend settings; the frontend cannot select them in a request.
 
-## Katalog ve mapping yanıt alanları
+## Catalog and mapping response fields
 
-Entegrasyon DTO alanları: `id,name,description,sourceSystemId,sourceSystemName,
+Integration DTO fields: `id,name,description,sourceSystemId,sourceSystemName,
 destinationSystemId,destinationSystemName,middlewareSystemId,middlewareSystemName,
 sourcePayloadFormat,destinationPayloadFormat,isSync,hasMiddleware,status,
 reviewRequired,createdAt,updatedAt,environmentTypes,environmentConfigs`.
-Üç rolün sistem adı aynı ortak katalogdan gelir. Şemalar ve field mapping'ler
-listede/detayda gömülü değildir. `environmentTypes`, yapılandırılmış ortamların
-tekilleştirilmiş listesidir; ayar yoksa `[]` döner.
-Arama entegrasyon adı ve üç roldeki sistem adlarında büyük/küçük harf duyarsızdır;
-sonuç dizisinde sayfalama veya istemciye açık sıralama parametresi yoktur.
+Names for all three system roles come from the shared catalog. Schemas and field
+mappings are not included in list/detail responses. `environmentTypes` lists each
+configured environment once; it is `[]` when no settings exist.
+Search matches integration names and system names in all three roles, ignoring
+letter case. The result array has no pagination or client sorting parameter.
 
 Config response: `id,configTarget,environmentType,url,timeoutMs,authType,
-credentialsConfigured,retryCount,retryIntervalMs`. `authCredentials` içermez.
-Şema: `id,schemaType,format,schemaDefinition,samplePayload,targetSchemaDefinition,targetSamplePayload,targetFormat,targetRawContent,rawContent,mappingSupported,csvOptions,
-fileName,contentType,fileSize,sampleDownloadUrl`. Format bazlı içerik, dosya yükleme
-ve hata örnekleri [payload sözleşmesindedir](payload-content.md). Field mapping:
+credentialsConfigured,retryCount,retryIntervalMs`. It does not contain `authCredentials`.
+Schema: `id,schemaType,format,schemaDefinition,samplePayload,targetSchemaDefinition,targetSamplePayload,targetFormat,targetRawContent,rawContent,mappingSupported,csvOptions,
+fileName,contentType,fileSize,sampleDownloadUrl`. See [payloads](payload-content.md)
+for format content, file uploads, and error examples. Field mapping:
 `id,sourceSchemaId,sourceFieldPath,targetSchemaId,targetFieldPath,isAiGenerated,aiConfidenceScore,origin,aiJobId,aiSuggestionId`.
-İsteğe bağlı AI servisleri, bağımsız JSON/XML/IDOC tarafları ve append sözleşmesi
-[AI eşleme belgesindedir](ai-mapping.md).
-Ollama/Gemini seçimi backend ayarıdır; frontend sağlayıcı/model/API anahtarı
-göndermez. Her iki sağlayıcı aynı AI endpoint ve yanıt sözleşmesini kullanır.
+See [AI mapping](ai-mapping.md) for optional AI services, independent JSON/XML/IDOC
+sides, and the append contract. Ollama/Gemini selection is a backend setting.
+The frontend does not send a provider, model, or API key. Both providers use the
+same AI endpoints and response format.
 
-Config ve eski `/mappings/fields` POST gövdeleri JSON dizisidir; mevcut listenin tamamını
-temsil eder. Eksik öğeler silinir; `[]` temizler. Config eşleşmesi ortam/hedef
-çiftine göredir. Middleware kullanılmıyorsa gönderilen MIDDLEWARE config'leri
-serviste filtrelenir; istemci bunları göndermemelidir. Şema POST ise tür bazlı
-upsert'tir. Şema DELETE veya tekil config/field PATCH endpoint'i yoktur.
-Akış değişiminden sonraki ilk başarılı şema POST/upload, önceki akışın uyumsuz
-şemalarını ve bağlı eşlemeleri yeni kayıtla aynı transaction'da temizler.
-Başarısız işlem eski kayıtları korur; başarılı işlemden sonra schemas ve fields
-listeleri yeniden okunmalıdır.
-Tam gövdeler ve tamamlama matrisi [iş akışı belgesindedir](integration-workflow.md).
+Config and legacy `/mappings/fields` POST bodies are JSON arrays that replace the
+whole current list. Missing items are deleted; `[]` clears the list. Configs match
+by environment/target pair. The service filters out MIDDLEWARE configs when the
+integration has no middleware; clients should not send them. Schema POST creates
+or updates by schema type. There is no schema DELETE or single config/field PATCH.
+The first successful schema POST/upload after a flow change removes schemas from
+the old flow and their mappings in the same transaction as the new record.
+Failed operations keep the old data. Reload schemas and fields after a successful
+save. See the [workflow guide](integration-workflow.md) for full bodies and required schemas.
 
-Örnek gövdeler ve harita/ortam filtresi uyarlaması [frontend sistem sözleşmesindedir](systems-frontend.md).
+See the [frontend system contract](systems-frontend.md) for sample bodies, the map,
+and the environment filter.
 
-## Enum değerleri
+## Enum values
 
-| Alan | Değerler |
+| Field | Values |
 |---|---|
 | `sourcePayloadFormat`, `destinationPayloadFormat` | `JSON`, `XML`, `IDOC`, `CSV`, `EXCEL` |
-| `environmentType`, credential yolundaki environment | `DEV`, `TEST`, `PROD` |
-| `configTarget`, credential yolundaki target | `DESTINATION`, `MIDDLEWARE` |
+| `environmentType`, environment in credential paths | `DEV`, `TEST`, `PROD` |
+| `configTarget`, target in credential paths | `DESTINATION`, `MIDDLEWARE` |
 | `authType` | `NONE`, `BASIC_AUTH`, `OAUTH2`, `API_KEY` |
-| `status` | `DRAFT`, `COMPLETED`; backend belirler |
+| `status` | `DRAFT`, `COMPLETED`; set by the backend |
 | `schemaType` | `SOURCE_TO_MW_REQUEST`, `MW_TO_DEST_REQUEST`, `DEST_TO_MW_RESPONSE`, `MW_TO_SOURCE_RESPONSE`, `SOURCE_TO_DEST_REQUEST`, `DEST_TO_SOURCE_RESPONSE` |
 | `role` | `ADMIN`, `EDITOR`, `VIEWER` |
 | `permissions` | `VIEW_CREDENTIALS`, `MANAGE_CREDENTIALS` |
 
-## Başlıca alan doğrulamaları
+## Main field validation rules
 
-| Alan | Kural |
+| Field | Rule |
 |---|---|
-| Katalog / entegrasyon `name` | Boş olamaz, en fazla 100 karakter |
-| `description` | Null olamaz, en fazla 500 karakter; boş string kabul edilir |
-| Entegrasyon temel alanları | sourceSystemId ve destinationSystemId zorunlu pozitif sistem ID'leri; formatlar, isSync ve hasMiddleware zorunlu |
-| `middlewareSystemId` | hasMiddleware=true ise pozitif ID; false ise null/alan yok |
-| Config ortam/hedef/authType | Zorunlu enum |
-| `url` | Boş olamaz, en fazla 100 karakter; HTTP URL sözdizimi doğrulaması yok |
-| `timeoutMs` | Verilirse > 0, milisaniye |
-| `retryCount`, `retryIntervalMs` | Verilirse >= 0; interval milisaniye |
-| `authCredentials` | Dinamik JSON map; yeni değer boş olamaz; tür bazlı anahtar doğrulaması yok |
-| JSON kaynak içeriği | `schemaDefinition` veya `samplePayload` nesnesi gerekir; yalnız örnek verilirse tanım da bundan oluşturulur. Tamamlamada tanım boş olamaz. Diğer formatlarda `schemaDefinition` backend tarafından üretilir |
-| `format`, `rawContent`, `csvOptions`, dosya | [Format bazlı sözleşme ve limitler](payload-content.md) |
-| Alan yolları | Boş olamaz, en fazla 500 karakter |
-| Field mapping `isAiGenerated` | Eski liste kaydında zorunlu; yeni manuel bağlantıda false, değişmeyen mevcut AI bağlantısında köken korunur |
-| Field mapping `aiConfidenceScore` | Yeni manuel/AI kayıtlarında null; güven seviyeleri AI sonuçlarında HIGH/MEDIUM şeklindedir |
-| Kullanıcı adı | 1–100 karakter, `[a-zA-Z0-9._-]+`, büyük/küçük harfe duyarlı |
-| E-posta | Geçerli e-posta, en fazla 254 karakter; normalize edilip küçük harfle saklanır |
-| Yeni parola | 12–128 karakter, yalnızca boşluk olamaz |
-| Hesap bağlantısı `token` | URL-safe Base64, 43 karakter; `[A-Za-z0-9_-]{43}` |
+| Catalog / integration `name` | Required, maximum 100 characters |
+| `description` | Must not be null, maximum 500 characters; an empty string is allowed |
+| Basic integration fields | sourceSystemId and destinationSystemId are required positive system IDs; formats, isSync, and hasMiddleware are required |
+| `middlewareSystemId` | Positive ID when hasMiddleware=true; null or absent when false |
+| Config environment/target/authType | Required enum |
+| `url` | Required, maximum 100 characters; HTTP URL syntax is not validated |
+| `timeoutMs` | If supplied, > 0; milliseconds |
+| `retryCount`, `retryIntervalMs` | If supplied, >= 0; interval is in milliseconds |
+| `authCredentials` | Dynamic JSON map; a new value must not be empty; required keys are not checked by auth type |
+| JSON source content | Needs a `schemaDefinition` or `samplePayload` object. A sample alone also becomes the definition. Completion needs a nonempty definition. The backend creates `schemaDefinition` for other formats |
+| `format`, `rawContent`, `csvOptions`, file | [Format contract and limits](payload-content.md) |
+| Field paths | Required, maximum 500 characters |
+| Field mapping `isAiGenerated` | Required in legacy list saves; false for new manual connections; unchanged AI connections keep their origin |
+| Field mapping `aiConfidenceScore` | Null for new manual/AI records; AI results use HIGH/MEDIUM confidence levels |
+| Username | 1–100 characters, `[a-zA-Z0-9._-]+`, case-sensitive |
+| Email | Valid email, maximum 254 characters; normalized and stored in lowercase |
+| New password | 12–128 characters; must not contain only spaces |
+| Account link `token` | URL-safe Base64, 43 characters; `[A-Za-z0-9_-]{43}` |
 
-JSON dosyası yüklenirken `schemaDefinition` dosyadan okunur. XML/IDOC için alan
-ağacı, CSV/Excel için `{}` döner. Metin/dosya sözleşmesi [payload belgesindedir](payload-content.md).
-Kaydetme doğrulaması ile tamamlanma doğrulaması farklıdır. Örneğin JSON'da `{}`
-kaydedilebilir ama tamamlanamaz; yanlış mapping akış çifti tamamlamada reddedilir.
+For a JSON upload, `schemaDefinition` comes from the file. XML/IDOC returns a field
+tree; CSV/Excel returns `{}`. See the [payload guide](payload-content.md) for text
+and file rules. Save checks and completion checks differ. For example, JSON `{}`
+can be saved but not completed; completion rejects an invalid mapping flow pair.
 
-## Hata sözleşmesi
+## Error contract
 
-API hataları ortak `ErrorResponse` zarfıyla döner. `code`, güvenli İngilizce
-`message`, `details: string[]`, `violations`, `params` ve `requestId` her hata
-zarfında bulunur. Frontend kullanıcı metinlerini `code` ve `violations[].code`
-üzerinden seçer; açıklama metinlerini ayrıştırmaz. Her istekte `X-Request-ID`,
-429 yanıtlarda pozitif saniye olarak `Retry-After` gönderilir.
+API errors use the shared `ErrorResponse` format. Every error includes `code`,
+a safe English `message`, `details: string[]`, `violations`, `params`, and `requestId`.
+The frontend selects user text from `code` and `violations[].code`; it does not
+parse explanation text. Every request receives `X-Request-ID`. HTTP 429 responses
+include `Retry-After` as a positive number of seconds.
 
-- [Ortak sözleşme, alan hataları ve örnekler](error-codes.md)
-- [Kod, HTTP durumu ve endpoint dizini](error-code-index.md)
-- [Her kod ve bağlam için örnek yanıtları içeren JSON katalog](error-catalog.json)
+- [Shared contract, field errors, and examples](error-codes.md)
+- [Code, HTTP status, and endpoint index](error-code-index.md)
+- [JSON catalog with examples for each code and context](error-catalog.json)
 
-DTO/parametre doğrulaması 400 `VALIDATION_FAILED`; tamamlama engelleri 409
-`INTEGRATION_INCOMPLETE` ve kodlu `violations` listesiyle döner. `details` geriye
-uyumluluk için İngilizce açıklamalar olarak korunur; boş listeler de gönderilir.
-Kimlik doğrulama, yetki, CSRF, framework ve hız sınırı hataları aynı zarfı kullanır.
-Tanınmayan yollar güvenlikte kapalıdır; bilinmeyen URL her zaman 404 dönmeyebilir.
+DTO/parameter validation returns 400 `VALIDATION_FAILED`. Completion errors return
+409 `INTEGRATION_INCOMPLETE` with coded `violations`. `details` remains as English
+fallback text, and empty lists are also returned. Authentication, authorization,
+CSRF, framework, and rate-limit errors use the same format. Unrecognized routes
+are denied by security; an unknown URL does not always return 404.
 
-AI işinin başarısız olması, durum sorgusunun başarısız olması değildir:
-GET job durumunda HTTP 200 ile `status=FAILED` ve `errorCode` dönebilir.
-Health yolları `/api/v1` dışında, `/actuator/health` altındadır; kendi sağlık
-zarfını kullanır. [Health sözleşmesi](configuration.md#sağlık-kontrolleri).
+A failed AI job is different from a failed status request. A job GET can return
+HTTP 200 with `status=FAILED` and an `errorCode`. Health endpoints are outside
+`/api/v1`, under `/actuator/health`, and keep their own health format.
+[Health contract](configuration.md#health-checks).

@@ -1,157 +1,162 @@
-# Kullanıcı yaşam döngüsü
+# User lifecycle
 
-Açık kayıt yerine ADMIN daveti kullanılır. Yeni hesap parolası ADMIN tarafından
-belirlenmez. Davet kabulü e-posta sahipliğini doğrular ve kullanıcının parolasını oluşturur.
-Parolalar 12–128 karakter olmalı ve yalnızca boşluk içermemelidir. Giriş kullanıcı adıyla yapılır.
+Users join through ADMIN invitations instead of public signup. The ADMIN does not
+set a new user's password. Accepting an invitation verifies email ownership and
+sets the password. Passwords must have 12–128 characters and must not contain only
+spaces. Users log in with their username.
 
-## Endpoint'ler
+## Endpoints
 
-POST/PUT işlemleri, anonim kabul edilenlerde bile, önce `/api/v1/auth/csrf` üzerinden
-alınan CSRF token'ını ve aynı oturum çerezini gerektirir.
+POST/PUT requests need a CSRF token from `/api/v1/auth/csrf` and the same session
+cookie, including endpoints that allow anonymous access.
 
-| Endpoint | Yetki | İşlev |
+| Endpoint | Access | Purpose |
 |---|---|---|
-| `POST /api/v1/users` | ADMIN | `{username,email,role}` ile davet, 201 |
-| `GET /api/v1/users?page=0&size=20` | ADMIN | En fazla 100 kayıtlık sayfalar |
-| `POST /api/v1/users/{id}/invitations/resend` | ADMIN | Yeni davet, 202 |
-| `PUT /api/v1/users/{id}/active` | ADMIN | `{active:false}` ile pasifleştirme |
-| `PUT /api/v1/users/{id}/role` | ADMIN | `{role:"EDITOR"}` ile rol değiştirme |
-| `PUT /api/v1/users/{id}/permissions` | ADMIN | Credential izinlerini güncelleme |
-| `POST /api/v1/users/{id}/sessions/revoke` | ADMIN | Tüm oturumları iptal, 204 |
-| `POST /api/v1/users/{id}/password-reset` | ADMIN | Zorunlu parola sıfırlama, 202 |
-| `GET /api/v1/users/mail-status` | ADMIN | Kuyruktaki ve başarısız posta sayıları |
-| `GET /api/v1/auth/me` | Oturum | Profil, roller ve credential izinleri |
+| `POST /api/v1/users` | ADMIN | Invite with `{username,email,role}`, 201 |
+| `GET /api/v1/users?page=0&size=20` | ADMIN | Pages with up to 100 records |
+| `POST /api/v1/users/{id}/invitations/resend` | ADMIN | New invitation, 202 |
+| `PUT /api/v1/users/{id}/active` | ADMIN | Deactivate with `{active:false}` |
+| `PUT /api/v1/users/{id}/role` | ADMIN | Change role with `{role:"EDITOR"}` |
+| `PUT /api/v1/users/{id}/permissions` | ADMIN | Update credential permissions |
+| `POST /api/v1/users/{id}/sessions/revoke` | ADMIN | Invalidate all sessions, 204 |
+| `POST /api/v1/users/{id}/password-reset` | ADMIN | Force a password reset, 202 |
+| `GET /api/v1/users/mail-status` | ADMIN | Pending and failed email counts |
+| `GET /api/v1/auth/me` | Session | Profile, roles, and credential permissions |
 | `POST /api/v1/auth/invitations/accept` | Token | `{token,newPassword}`, 204 |
-| `POST /api/v1/auth/password-reset/request` | Herkes | `{email}`, her adres için aynı 202 yanıtı |
+| `POST /api/v1/auth/password-reset/request` | Public | `{email}`, same 202 response for every address |
 | `POST /api/v1/auth/password-reset/confirm` | Token | `{token,newPassword}`, 204 |
-| `POST /api/v1/auth/password/change` | Oturum | `{currentPassword,newPassword}`, 204 |
-| `POST /api/v1/auth/email/change` | Oturum | `{currentPassword,email}`, 202 |
+| `POST /api/v1/auth/password/change` | Session | `{currentPassword,newPassword}`, 204 |
+| `POST /api/v1/auth/email/change` | Session | `{currentPassword,email}`, 202 |
 | `POST /api/v1/auth/email/confirm` | Token | `{token}`, 204 |
 
-`users` yanıtlarında `emailVerified`, `active` ve `passwordResetRequired` hesap
-durumunu gösterir. Parola, parola hash'i veya bağlantı token'ı yanıtlarla gönderilmez.
+In user responses, `emailVerified`, `active`, and `passwordResetRequired` describe
+the account state. Passwords, password hashes, and link tokens are not returned.
 
-## Davet ve doğrulama
+## Invitations and verification
 
-1. ADMIN kullanıcı adı, e-posta ve rol gönderir. E-posta küçük harfe çevrilir ve
-   benzersizdir. Hesap pasif ve doğrulanmamış olarak oluşturulur.
-2. Posta kuyruğuna doğrulama bağlantısı yazılır. Davet 24 saat geçerlidir.
-3. Kullanıcı frontend'de yeni parolasını belirler; frontend token ve parolayı
-   `/invitations/accept` endpoint'ine gönderir.
-4. Hesap aktif/doğrulanmış olur; token tüketilir. Otomatik giriş yapılmaz; kullanıcı
-   normal giriş akışını kullanır. Süresi dolarsa ADMIN yeniden davet gönderebilir.
+1. ADMIN sends a username, email, and role. Email is made lowercase and must be
+   unique. The account starts inactive and unverified.
+2. A verification link is added to the email queue. Invitations last 24 hours.
+3. The user chooses a new password in the frontend. The frontend sends the token
+   and password to `/invitations/accept`.
+4. The account becomes active and verified, and the token is consumed. The user
+   must log in through the normal flow; login is not automatic. ADMIN can resend
+   an expired invitation.
 
-Yeni davet önceki bağlantıyı geçersiz kılar. Aynı hesaba davet/sıfırlama/e-posta
-değişikliği bağlantısı aynı amaçla en fazla 60 saniyede bir üretilebilir.
+A new invitation invalidates the old link. A link for the same account and purpose
+(invitation, reset, or email change) can be created at most once every 60 seconds.
 
-## Parola değiştirme ve sıfırlama
+## Password changes and resets
 
-Giriş yapmış kullanıcı mevcut parolasını doğrular. Yeni parola eskisiyle aynı olamaz.
-Parola değişince bilgilendirme postası kuyruğa alınır; mevcut ve diğer oturumlar iptal edilir.
+A logged-in user must verify their current password. The new password must differ
+from the old one. Changing it queues a notice email and invalidates all sessions,
+including the current session.
 
-"Parolamı unuttum" endpoint'i hesabın varlığına göre farklı yanıt vermez. Her e-posta
-için aynı şifreli iş kuyruğa alınır; kullanıcı sorgusu arka planda yapılır. Yalnızca
-aktif ve doğrulanmış hesaplara 30 dakikalık bağlantı üretilir. Pasif hesaplar bu yolla
-yeniden aktifleştirilemez. Yeni parola belirlendikten sonra bütün oturumlar iptal
-edilir, bilgilendirme postası oluşturulur ve yeniden giriş gerekir.
+The "Forgot password" endpoint gives the same response whether an account exists
+or not. It queues the same type of encrypted job for every email and checks the
+account in the background. Only active, verified accounts get a 30-minute link.
+This flow cannot reactivate inactive accounts. After setting a new password, all
+sessions are invalidated, a notice email is queued, and the user must log in again.
 
-ADMIN'in başlattığı zorunlu sıfırlamada eski oturumlar hemen iptal edilir, eski
-parolayla yeni giriş de kapanır. Sıfırlama tamamlanınca giriş yeniden açılır.
-Son aktif ADMIN bu yolla kilitlenemez; kendi parola değiştirme veya unuttum akışını kullanır.
+An ADMIN-forced reset immediately invalidates old sessions and blocks new login
+with the old password. Login is available again after the reset. The last active
+ADMIN cannot be locked out this way and must use their own password-change or
+forgot-password flow.
 
-## E-posta değiştirme
+## Email changes
 
-Mevcut parola istenir. Eski adres değiştirilmeden yeni adrese 30 dakikalık bağlantı
-gönderilir; eski adrese talep bildirimi oluşturulur. Yeni adres doğrulanınca adres
-değişir, oturumlar iptal edilir ve iki adrese de bildirim oluşturulur. Adresin başka
-bir hesap tarafından alınmış olup olmadığı doğrulama sırasında tekrar kontrol edilir.
+The current password is required. A 30-minute link is sent to the new address
+while the old address stays active. A request notice is sent to the old address.
+Once the new address is verified, it replaces the old one, sessions are
+invalidated, and both addresses get a notice. The backend checks again that no
+other account has taken the new address.
 
-Başlangıç yönetici hesabı ve daha önce oluşturulmuş e-postasız hesaplar mevcut
-girişlerini korur; `/auth/email/change` akışıyla e-posta bağlamalıdır. E-posta
-bağlamadan e-postayla parola kurtarma kullanılamaz. Bu geçiş istisnası yeni davet
-hesapları için geçerli değildir. Yeni hesaplar doğrulanmadan giriş yapamaz.
+The bootstrap admin and older accounts without an email can keep logging in.
+They should link an email through `/auth/email/change`. Email password recovery
+is unavailable until an address is linked. This exception does not apply to new
+invited users, who cannot log in before verification.
 
-## Yönetim ve oturumlar
+## Administration and sessions
 
-Kullanıcılar fiziksel olarak silinmez. Son giriş yapabilen ADMIN'in pasifleştirilmesi
-veya rolünün düşürülmesi 409 döner. ADMIN hesapları veritabanında sıralı olarak
-kilitlenerek eşzamanlı iki isteğin bütün yöneticileri devre dışı bırakması önlenir.
-Hesap ve token değişiklikleri transaction içinde ve token tüketimi kilit altında yapılır.
+Users are not physically deleted. Deactivating or changing the role of the last
+ADMIN who can log in returns 409. Admin rows are locked in order so concurrent
+requests cannot disable all administrators. Account/token changes use transactions,
+and token consumption happens under a lock.
 
-Parola/e-posta/rol/izin değişiklikleri, pasifleştirme ve oturum iptali işlemleri
-hesabın `sessionVersion` değerini artırır. Gerçek giriş oturumları her istekte
-veritabanındaki güncel değerle karşılaştırılır. Eski sürüm reddedilir ve oturum
-geçersiz kılınır. Hesap doğrulanırken veritabanı kullanılamazsa korunan istek 503
-döner. Health endpoint'leri bu kullanıcı kontrolünden bağımsızdır.
+Password, email, role, and permission changes, deactivation, and session revocation
+increase the account's `sessionVersion`. Real login sessions are checked against
+the current database value on each request. Old versions are rejected and the
+session is invalidated. If the database is unavailable during account verification,
+the protected request returns 503. Health endpoints do not depend on this account check.
 
-Kullanıcı işlemleri `account_audit` tablosuna kullanıcı/amaç/zaman bilgisiyle yazılır;
-parola veya ham token kaydedilmez. Audit erişim/retention politikası ve dağıtık
-oturum deposu ayrıca yapılandırılmalıdır.
+User actions are written to `account_audit` with the user, purpose, and time.
+Passwords and raw tokens are not stored there. Audit access/retention rules and
+a shared session store need separate setup.
 
-## Token, posta kuyruğu ve SMTP
+## Tokens, email queue, and SMTP
 
-Token 32 byte güvenli rastgele verinin padding'siz URL-safe Base64 gösterimidir;
-43 karakterdir (`[A-Za-z0-9_-]{43}`). Token tablosunda yalnızca SHA-256
-hash'i bulunur. Amaç, hesap, e-posta, son kullanım zamanı ve oturum sürümüyle
-doğrulanır. Süresi bitmiş, kullanılmış veya eski sürüme ait bağlantı 400 döner.
+A token is 32 secure random bytes encoded as URL-safe Base64 without padding.
+It has 43 characters (`[A-Za-z0-9_-]{43}`). The token table stores only a SHA-256
+hash. Validation checks the purpose, account, email, expiry, and session version.
+Expired, used, or old-version links return 400.
 
-E-postalar hesap işlemiyle aynı transaction'da `mail_outbox` tablosuna yazılır.
-Kuyruktaki alıcı, metin ve ham bağlantı AES-GCM ile şifrelenir; anahtar mevcut
-`CATALOG_CREDENTIALS_KEY` değeridir. Burada ham token'ın şifreli kopyası vardır;
-token doğrulama tablosunda ise yalnızca hash bulunur. Kuyruk satırının UUID'si
-şifrelemeye bağlanır. Anahtarın korunması bu postalar için de gereklidir.
+Emails are written to `mail_outbox` in the same transaction as the account action.
+The recipient, text, and raw link are encrypted with AES-GCM using
+`CATALOG_CREDENTIALS_KEY`. The outbox holds an encrypted copy of the raw token;
+the validation table holds only the hash. Encryption is tied to the queue row's
+UUID. Keeping the key safe is also necessary for these emails.
 
-Worker 15 saniyede bir en fazla 10 iş seçer; SMTP gönderiminde beş saniyelik
-bağlantı/okuma/yazma timeout'ları vardır. Hatalar artan gecikmeyle en fazla sekiz
-kez denenir. Başarılı veya kalıcı başarısız teslimde şifreli mesaj içeriği temizlenir;
-durum ve deneme sayısı kalır. Son denemesi başarısız bir davet için ADMIN yeni davet
-üretmelidir. Bir mesaj SMTP'ye teslim edildikten hemen sonra süreç/commit başarısız
-olursa tekrar teslim mümkündür; alıcı tek kullanımlık aynı bağlantıyı görebilir.
-SMTP kabulü mesajın alıcının gelen kutusuna ulaştığını garanti etmez.
+Every 15 seconds, the worker selects up to 10 jobs. SMTP connection/read/write
+timeouts are five seconds each. Failures are retried up to eight times, with
+increasing delays. Successful delivery or final failure clears the encrypted
+message content but keeps status and attempt counts. After an invitation's last
+failed attempt, ADMIN must create a new invitation. If sending succeeds but the
+process or commit fails immediately afterward, the email may be sent again with
+the same single-use link. SMTP acceptance does not guarantee inbox delivery.
 
-Posta kesintisi katalog readiness'ını bozmaz. ADMIN `/users/mail-status` ile pending
-ve failed sayılarını izleyebilir. Loglar yalnızca posta işinin ID ve deneme sayısını
-içerir. SMTP debug ve HTTP gövde/trace loglaması açılmamalıdır; bunlar parola veya
-token içerebilir.
+Email failures do not change catalog readiness. ADMIN can monitor pending and
+failed counts through `/users/mail-status`. Logs contain only the email job ID
+and attempt count. Do not enable SMTP debug or HTTP body/trace logging; they can
+contain passwords or tokens.
 
-Giriş, davet kabulü, parola ve e-posta POST işlemleri IP başına 60 saniyede 20
-istekle sınırlıdır (429).
-Sayaç uygulama belleğindedir; yeniden başlatmada sıfırlanır. İstemcinin gönderdiği
-X-Forwarded-For'a güvenilmez. Çok instance veya reverse proxy dağıtımında gateway
-üzerinde paylaşımlı limit ve güvenilir istemci IP ayarı ayrıca yapılmalıdır.
+Login, invitation acceptance, password, and email POST requests are limited to
+20 requests per IP in 60 seconds (429). The counter is held in application memory
+and resets on restart. Client-supplied X-Forwarded-For is not trusted. Multiple
+instances or a reverse proxy need a shared gateway limit and trusted client IP setup.
 
-### Yerel deneme
+### Local testing
 
 ```sh
 docker compose --profile mail up --build -d
 ```
 
-Mailpit arayüzü `http://localhost:8025` adresindedir. Mesajlar gerçek kişilere
-gönderilmez. Mailpit'e erişebilenler test bağlantılarını da görebilir; servis
-yalnızca localhost portlarına bağlıdır. IDE'den çalıştırırken SMTP_HOST=localhost,
-SMTP_PORT=1025 kullanın; Docker'daki app için varsayılan SMTP_HOST=mailpit'tir.
+The Mailpit UI is at `http://localhost:8025`. It does not send messages to real
+people. Anyone with Mailpit access can read test links; its ports are bound to
+localhost only. When running from an IDE, use SMTP_HOST=localhost and
+SMTP_PORT=1025. The Docker app defaults to SMTP_HOST=mailpit.
 
-Gerçek sunucuda SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_AUTH,
-SMTP_STARTTLS ve MAIL_FROM ayarlarını tanımlayın. STARTTLS sunucusunda örneğin
-SMTP_AUTH=true, SMTP_STARTTLS=true ve uygun port kullanılır. Kimlik bilgilerini Git'e
-koymayın. SMTP kabulünü ve gerçek teslimi kendi ortamınızda doğrulayın.
+For a real server, set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD,
+SMTP_AUTH, SMTP_STARTTLS, and MAIL_FROM. A STARTTLS server typically needs
+SMTP_AUTH=true, SMTP_STARTTLS=true, and the correct port. Keep credentials out of
+Git. Verify SMTP acceptance and actual delivery in your own environment.
 
-ACCOUNT_ACTION_URL frontend doğrulama sayfasının tam adresidir.
-Localhost dışında HTTPS gereklidir; Host başlığından bağlantı üretilmez. Token URL
-fragment'ında bulunur: `#purpose=INVITATION&token=...`. Frontend token'ı okuyup URL'den
-temizlemeli, saklamamalı ve uygun POST endpoint'ine göndermelidir. Doğrulama/sıfırlama
-frontend sayfaları bu repoda bulunmaz; backend akışları HTTP istemcisiyle denenebilir.
-Fragment işleme ve endpoint eşlemesi [frontend rehberinde](frontend-integration.md),
-ortam değişkenleri [yapılandırma belgesinde](configuration.md) açıklanır.
-Mailpit mesajları container yeniden oluşturulduğunda korunacak bir volume'a yazılmaz;
-yerel posta kutusunu kalıcı audit veya yedek yerine kullanmayın.
+ACCOUNT_ACTION_URL is the full URL of the frontend verification page. HTTPS is
+required outside localhost. The URL is not built from the Host header. The token
+is in the URL fragment: `#purpose=INVITATION&token=...`. The frontend should read
+it, remove it from the URL, avoid storing it, and send it to the matching POST
+endpoint. Verification/reset frontend pages are not in this repository; backend
+flows can be tested with an HTTP client. See the [frontend guide](frontend-integration.md)
+for fragment handling and endpoint mapping, and [configuration](configuration.md)
+for environment variables. Mailpit does not store messages in a volume that
+survives container recreation. Do not use the local inbox as permanent audit
+storage or as a backup.
 
-## Doğrulama sınırı
+## Validation limits
 
-Hesap servisleri ve HTTP güvenlik filtreleri otomatik test edilir; SMTP testleri
-sahte sender kullanır. Gerçek PostgreSQL eşzamanlılığı ve SMTP teslimi için kapsam
-[mimari belgesindedir](architecture.md#test-kapsamı-ve-doğrulama-yöntemi).
+Account services and HTTP security filters have automated tests. SMTP tests use a
+fake sender. See the [architecture guide](architecture.md#test-coverage-and-validation-methods)
+for real PostgreSQL concurrency and SMTP delivery coverage.
 
-Referanslar: [Spring Boot e-posta](https://docs.spring.io/spring-boot/3.5/reference/io/email.html),
-[OWASP parola kurtarma](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html),
+References: [Spring Boot email](https://docs.spring.io/spring-boot/3.5/reference/io/email.html),
+[OWASP password recovery](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html),
 [Mailpit Docker](https://mailpit.axllent.org/docs/install/docker/).

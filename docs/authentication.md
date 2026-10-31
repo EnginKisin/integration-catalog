@@ -1,148 +1,147 @@
-# Giriş ve rol yönetimi
+# Authentication and role management
 
-Backend yerel kullanıcı hesapları, oturum tabanlı giriş ve üç rol kullanır.
-Kullanıcı giriş parolaları PBKDF2 ile hash'lenir; geri çözülemez.
-Bu, dış sistem erişim bilgilerinin şifrelenmesinden ayrı bir işlemdir.
+The backend uses local accounts, session-based login, and three roles. Login
+passwords use PBKDF2 hashes and cannot be decrypted. This is separate from the
+reversible encryption used for external system credentials.
 
-## İlk yönetici
+## First administrator
 
-İlk çalıştırmada boş `user_accounts` tablosu için şu ortam değişkenlerini tanımlayın:
+On first startup, set these environment variables if `user_accounts` is empty:
 
-- `CATALOG_ADMIN_USERNAME`: 1–100 karakter; harf, rakam, nokta, tire veya alt çizgi.
-- `CATALOG_ADMIN_PASSWORD`: 12–128 karakter; yalnızca boşluklardan oluşmamalı.
+- `CATALOG_ADMIN_USERNAME`: 1–100 characters; letters, digits, dots, hyphens, or underscores.
+- `CATALOG_ADMIN_PASSWORD`: 12–128 characters; must not contain only spaces.
 
-Varsayılan kullanıcı/parola yoktur. Her başlangıçta kullanıcı tablosu kontrol edilir;
-tablo boşsa bu bilgilerle bir ADMIN oluşturulur. Bilgiler eksik/geçersizse başlangıç
-durur. Herhangi bir kullanıcı varsa yeni admin oluşturulmaz, mevcut parola
-değiştirilmez. İlk kurulumdan sonra bootstrap değişkenleri kaldırılabilir; DB
-sıfırlanırsa yeniden verilmelidir. Boş DB'de tablolar `ddl-auto=update` ile oluşur.
+There is no default username/password. The user table is checked on each startup.
+If it is empty, these values create an ADMIN. Startup stops if the values are
+missing or invalid. If any user exists, no new admin is created and the current
+password stays the same. You can remove bootstrap variables after setup, but must
+provide them again after resetting the database. Empty databases get their tables
+through `ddl-auto=update`.
 
-## Roller
+## Roles
 
-| İşlem | VIEWER | EDITOR | ADMIN |
+| Action | VIEWER | EDITOR | ADMIN |
 |---|---|---|---|
-| Katalog okuma | Evet | Evet | Evet |
-| Oluşturma, düzenleme, config/mapping kaydetme ve tamamlama | Hayır | Evet | Evet |
-| Entegrasyon silme | Hayır | Hayır | Evet |
-| Kullanılmayan sistem silme | Hayır | Hayır | Evet |
-| Kullanıcı listeleme ve oluşturma | Hayır | Hayır | Evet |
-| Swagger / OpenAPI | Hayır | Hayır | Evet |
+| Read catalog | Yes | Yes | Yes |
+| Create, edit, save configs/mappings, and complete | No | Yes | Yes |
+| Delete integration | No | No | Yes |
+| Delete unused system | No | No | Yes |
+| List and create users | No | No | Yes |
+| Swagger / OpenAPI | No | No | Yes |
 
-Yeni endpoint'ler açıkça yetkilendirilene kadar kapalıdır.
-Kullanıcılar ADMIN davetiyle eklenir. Rol, hesap durumu, oturum iptali ve
-e-posta doğrulama akışları için [kullanıcı yönetimi](user-management.md) belgesine bakın.
-Fiziksel kullanıcı silme ve açık kayıt endpoint'i yoktur.
-Ortak sistem kataloğunun güncelleme, aktiflik ve silme kuralları için
-[katalog yönetimi](systems-frontend.md) belgesine bakın.
+New endpoints are denied until access rules are added. Users join through ADMIN
+invitations. See [user management](user-management.md) for roles, account state,
+session invalidation, and email verification. There is no physical user deletion
+or public signup. See [catalog management](systems-frontend.md) for system updates,
+active status, and deletion rules.
 
-## Frontend / Postman akışı
+## Frontend / Postman workflow
 
-1. `GET /api/v1/auth/csrf` isteği yapın. Dönen `token` ve `headerName` değerlerini
-   alın; yanıtın oturum çerezini sonraki isteklerde koruyun.
-2. `POST /api/v1/auth/login` isteğini `application/x-www-form-urlencoded`
-   biçiminde `username` ve `password` alanlarıyla gönderin. CSRF token'ını önceki
-   yanıttaki başlık adıyla gönderin. Başarılı giriş 200, hatalı giriş 401 döner.
-3. Girişten sonra tekrar CSRF token'ı alın. Oturum kimliği girişte yenilenir.
-4. `GET /api/v1/auth/me` kullanıcı adı, e-posta, doğrulama/aktiflik durumu ve rolleri döndürür.
-   `permissions` alanı güncel credential izinlerini içerir.
-5. POST/PUT/PATCH/DELETE isteklerinde güncel CSRF token'ını ve oturum çerezini gönderin.
-6. `POST /api/v1/auth/logout` CSRF token'ıyla çıkış yapar; 204 döner ve oturumu kapatır.
-   Yeniden girişten önce yeni CSRF token'ı alın.
+1. Call `GET /api/v1/auth/csrf`. Read `token` and `headerName`, and keep the session
+   cookie for later requests.
+2. Call `POST /api/v1/auth/login` with `application/x-www-form-urlencoded` fields
+   `username` and `password`. Send the CSRF token using the returned header name.
+   Success returns 200; failed login returns 401.
+3. Get a new CSRF token after login. Login changes the session ID.
+4. `GET /api/v1/auth/me` returns username, email, verification/active state, and
+   authorities. `permissions` contains current credential permissions.
+5. Send the current CSRF token and session cookie on POST/PUT/PATCH/DELETE requests.
+6. `POST /api/v1/auth/logout` with CSRF returns 204 and closes the session. Get a
+   fresh CSRF token before logging in again.
 
-ADMIN, `POST /api/v1/users` ile aşağıdaki biçimde JSON göndererek kullanıcı davet eder:
+An ADMIN invites a user through `POST /api/v1/users` with this JSON:
 
 ```json
 {"username":"reader","email":"reader@example.com","role":"VIEWER"}
 ```
 
-ADMIN parola belirlemez. Kullanıcı e-postadaki bağlantıyla parolasını belirleyene
-kadar hesap kullanılamaz. `GET /api/v1/users?page=0&size=20` kullanıcıları sayfalı
-listeler (`items`, `page`, `size`, `totalElements`, `totalPages`); parola ve hash
-yanıtta bulunmaz. Tekrarlanan kullanıcı adı/e-posta 409 döner. Kullanıcı adları
-büyük/küçük harfe duyarlıdır; e-postalar küçük harfle saklanır.
+The ADMIN does not choose the password. The account cannot be used until the user
+sets a password through the email link. `GET /api/v1/users?page=0&size=20` returns
+paged users (`items`, `page`, `size`, `totalElements`, `totalPages`), without
+passwords or hashes. A duplicate username/email returns 409. Usernames are
+case-sensitive; emails are stored in lowercase.
 
-Oturum çerezi HttpOnly ve SameSite=Lax'tır; hareketsizlik süresi 30 dakikadır.
-Frontend aynı origin üzerinden çalışmalıdır; geliştirmede frontend dev proxy kullanın.
-Backend'de farklı origin'lere izin veren CORS yapılandırması yoktur. HTTPS ortamında
-`SESSION_COOKIE_SECURE=true` tanımlayın. Yerel HTTP geliştirme için varsayılan değer false'tur.
-Oturumlar uygulama belleğindedir; yeniden başlatmada kaybolur.
-Parola, e-posta, rol veya credential izni değiştiğinde ve hesap pasifleştirildiğinde
-oturum sürümü artırılır. Eski oturumlar sonraki istekte veritabanı kontrolüyle reddedilir.
+The session cookie is HttpOnly and SameSite=Lax, with a 30-minute idle timeout.
+The frontend must use the same origin; use a development proxy locally. The
+backend has no CORS setup for separate origins. Set `SESSION_COOKIE_SECURE=true`
+for HTTPS. It defaults to false for local HTTP. Sessions are held in application
+memory and are lost on restart. Password, email, role, credential permission, and
+active-state changes increase the session version. A database check rejects old
+sessions on the next request.
 
-## Dış sistem erişim bilgileri
+## External system credentials
 
-`authCredentials` katalog okuma yanıtlarında gönderilmez; `credentialsConfigured`
-alanı bilgilerin mevcut olup olmadığını gösterir. Config kaydında `authCredentials`
-gönderilmezse aynı ortam/hedef/auth türünün mevcut bilgileri korunur. Yeni map
-gönderilirse eski map'in yerini alır; `authType=NONE` bilgileri temizler.
-Farklı auth türüne geçişte eski türün bilgileri aktarılmaz.
-Config POST bütün listeyi temsil eder; gönderilmeyen ortam/hedef kayıtları silinir.
-Frontend örneği ve maskeleme kuralları için [frontend rehberine](frontend-integration.md) bakın.
+Catalog read responses do not include `authCredentials`. The
+`credentialsConfigured` field shows whether credentials exist. If a config save
+omits `authCredentials`, existing credentials are kept for the same environment,
+target, and auth type. A new map replaces the old map. `authType=NONE` clears them.
+Changing the auth type does not carry over old credentials. Config POST replaces
+the whole list, deleting omitted environment/target records. See the [frontend guide](frontend-integration.md)
+for examples and masking rules.
 
-### Anahtar ve şifreli saklama
+### Encryption key and storage
 
-Uygulamayı çalıştırmadan önce `CATALOG_CREDENTIALS_KEY` ortam değişkenine Base64
-biçiminde 32 byte rastgele anahtar tanımlayın. Örneğin anahtarı kendi makinenizde
-`openssl rand -base64 32` ile üretebilirsiniz. Anahtarı kaynak koda, veritabanına,
-Git'e veya loglara koymayın; kalıcı bir secret deposunda saklayın. Her başlatmada
-aynı anahtar gerekir. Kaybolan anahtarla saklanmış bilgiler geri çözülemez.
+Before startup, set `CATALOG_CREDENTIALS_KEY` to a Base64-encoded random 32-byte key.
+You can generate it locally with `openssl rand -base64 32`. Keep it in a persistent
+secret store, not source code, the database, Git, or logs. Every startup needs the
+same key. Losing it makes stored credentials unreadable.
 
-Yeni erişim bilgileri AES-256-GCM ile şifrelenir ve aynı JSONB sütununda format,
-12-byte rastgele IV ve ciphertext olarak tutulur. Entegrasyon/ortam/hedef/auth türü
-şifrelemeye bağlanır; başka ortama taşınan veya değiştirilen ciphertext reddedilir.
-Yeni anahtara geçiş/anahtar rotasyonu bu sürümde otomatik yapılmaz.
+New credentials use AES-256-GCM. The existing JSONB column stores the format,
+a random 12-byte IV, and encrypted content. Encryption is tied to the integration,
+environment, target, and auth type. Moving or changing encrypted content causes
+validation to fail. This release does not automate key rotation.
 
-Eski açık kayıtlar varsa:
+If old plaintext records exist:
 
-1. Veritabanını yedekleyin; uygulamanın diğer instance'larını durdurun.
-2. Kalıcı anahtarı tanımlayın, `CATALOG_CREDENTIALS_MIGRATE=true` ile bir kez başlatın.
-3. Başarılı dönüşümden sonra `CATALOG_CREDENTIALS_MIGRATE=false` yapın; anahtarı koruyun.
+1. Back up the database and stop other application instances.
+2. Set the persistent key and start once with `CATALOG_CREDENTIALS_MIGRATE=true`.
+3. After successful conversion, set `CATALOG_CREDENTIALS_MIGRATE=false` and keep the key.
 
-Dönüşüm transaction içinde yapılır; şifreli kayıtlar tekrar şifrelenmez.
-Açık kayıtlar varken dönüşüm kapalıysa, ya da şifreli kayıtlar mevcut anahtarla
-çözülemiyorsa uygulama açılışı durur. Eski yedeklerdeki açık bilgiler bu işlemle
-silinmez; yedeklerin erişimi ayrıca korunmalıdır. Credential dönüşümünün gerçek
-DB testi ile payload saklamanın DB testi ayrı kontrollerdir.
+Conversion runs in a transaction and does not encrypt existing encrypted records
+again. Startup stops if plaintext records exist while conversion is off, or if
+the current key cannot decrypt stored data. This does not remove plaintext from
+old backups; protect their access separately. Real database checks for credential
+conversion and payload storage are separate tasks.
 
-### Ayrı izinler
+### Separate permissions
 
-| İzin | Etki |
+| Permission | Effect |
 |---|---|
-| `VIEW_CREDENTIALS` | Yetkili görüntüleme endpoint'inden çözülmüş bilgileri alma |
-| `MANAGE_CREDENTIALS` | EDITOR için yeni bilgi yazma, değiştirme ve silme |
+| `VIEW_CREDENTIALS` | Read decrypted values from the protected reveal endpoint |
+| `MANAGE_CREDENTIALS` | Allow an EDITOR to write, change, or delete credentials |
 
-ADMIN her iki yetkiye sahiptir. EDITOR ve VIEWER varsayılan olarak bu izinlere
-sahip değildir. VIEWER'a görüntüleme izni verilebilir; değiştirme izni rolünün
-salt okuma sınırını aşmaz. Görüntüleme ve değiştirme izinleri birbirini içermez.
+ADMIN has both permissions. EDITOR and VIEWER have neither by default. A VIEWER
+can receive read permission. Write permission does not override the VIEWER role's
+read-only limit. Neither credential permission includes the other.
 
-ADMIN, `PUT /api/v1/users/{id}/permissions` ile izinlerin tamamını günceller:
+ADMIN replaces all permissions with `PUT /api/v1/users/{id}/permissions`:
 
 ```json
 {"permissions":["VIEW_CREDENTIALS","MANAGE_CREDENTIALS"]}
 ```
 
-Boş liste izinleri kaldırır. İzinler veritabanından kontrol edildiğinden mevcut
-oturumlarda da iptal bir sonraki istekte etkili olur.
+An empty list removes permissions. They are checked against the database, so a
+removal applies to existing sessions on the next request.
 
-Frontend'deki "Göster" düğmesi yalnızca ihtiyaç olduğunda
-`GET /api/v1/integrations/{id}/configs/DEV/DESTINATION/credentials` isteği yapar.
-Bu yanıt `Cache-Control: no-store` içerir. Başarılı görüntüleme uygulama loguna
-kullanıcı, entegrasyon, ortam ve hedef bilgisiyle yazılır; secret değerleri yazılmaz.
-Secret görüntüleme audit'i uygulama logudur. Kullanıcı yönetimi işlemleri ayrıca
-`account_audit` tablosuna yazılır. MFA henüz yoktur.
+The frontend's "Show" button should call
+`GET /api/v1/integrations/{id}/configs/DEV/DESTINATION/credentials` only when needed.
+The response has `Cache-Control: no-store`. Successful reveals log the user,
+integration, environment, and target, without secret values. Secret reveal audit
+uses application logs. User management also writes to `account_audit`. MFA is not
+implemented.
 
-Config kaydetmede `MANAGE_CREDENTIALS` olmadan mevcut secret korunarak URL gibi
-metaveriler güncellenebilir. Yeni secret, auth türü değiştirme veya secret içeren
-config'i listeden çıkarma ayrıca izin gerektirir. Boş credential map reddedilir;
-temizlemek için `authType=NONE` kullanılır. Yeni auth türü için bilgi verilmelidir.
-Config ID ve oluşturma zamanı güncellemede korunur.
+Without `MANAGE_CREDENTIALS`, users can update config metadata such as URLs while
+keeping existing secrets. New secrets, auth type changes, or removing a config
+that holds secrets need that permission. Empty credential maps are rejected;
+use `authType=NONE` to clear them. A new auth type needs credentials. Updates keep
+the config ID and creation time.
 
-## Doğrulama
+## Validation
 
-Giriş/CSRF/rol kontrolleri gerçek güvenlik filtreleriyle, credential dönüşümü ise
-mock JDBC ile test edilir. Test grupları ve gerçek DB/SMTP kapsamının sınırları
-[mimari belgesindedir](architecture.md#test-kapsamı-ve-doğrulama-yöntemi).
+Login/CSRF/role tests use real security filters. Credential conversion tests use
+mocked JDBC. See the [architecture guide](architecture.md#test-coverage-and-validation-methods)
+for test groups and the limits of real database/SMTP coverage.
 
-Referans: [Spring Security form login](https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/form.html)
-ve [CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html).
-Şifreleme referansı: [Java 21 GCM parametreleri](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/javax/crypto/spec/GCMParameterSpec.html).
+References: [Spring Security form login](https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/form.html)
+and [CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html).
+Encryption reference: [Java 21 GCM parameters](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/javax/crypto/spec/GCMParameterSpec.html).
