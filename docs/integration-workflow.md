@@ -165,15 +165,6 @@ kaydında yapılır. Kullanıcı kalan verileri yeni seçime göre gözden geçi
 gövdesi `{"confirmed":true}` ile onaylar, ardından complete çağırır.
 Onay işaretini backend'in içerik uyumluluğunu bütünüyle doğruladığı şeklinde yorumlamayın.
 
-```mermaid
-stateDiagram-v2
-    [*] --> DRAFT: Oluştur
-    DRAFT --> COMPLETED: Tamamlama kontrolleri başarılı
-    COMPLETED --> DRAFT: Teknik değişiklik veya alt veri kaydı
-    DRAFT --> DRAFT: İnceleme onayı / eksikleri düzeltme
-    COMPLETED --> COMPLETED: Yalnızca ad ve açıklama
-```
-
 Tamamlamada eksik/tutarsız veri veya inceleme gereksinimi varsa 409 döner.
 `details` listesini ekranda gösterin. Tamamlama isteği kayıtları otomatik silmez
 veya eksikleri kendiliğinden doldurmaz. Eski topolojinin uyumsuz şemaları ilk

@@ -7,6 +7,11 @@ Sağlayıcı backend ayarıyla seçilir: varsayılan Docker içindeki yerel Olla
 isteğe bağlı olarak Google Gemini API. Frontend'de sağlayıcı/model/API anahtarı
 seçimi yoktur; aynı endpoint'ler kullanılır.
 
+## Öneri ve onay akışı
+
+İş sürerken frontend `pollAfterMs` aralığında durum sorgular. Sonuç otomatik
+kaydedilmez; eski bağlam veya bağlantı çakışması varsa kayıt reddedilir.
+
 ## Docker kurulumu
 
 Bu bölüm Ollama içindir. Gemini için model/container indirmeniz gerekmez;

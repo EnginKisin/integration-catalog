@@ -6,19 +6,6 @@ erişimini üstlenir. Güvenlik filtreleri oturum, CSRF, rol ve güncel hesap ko
 
 ## Veri ilişkileri
 
-```mermaid
-erDiagram
-    SYSTEM ||--o{ INTEGRATION : sourceSystem
-    SYSTEM ||--o{ INTEGRATION : destinationSystem
-    SYSTEM o|--o{ INTEGRATION : middlewareSystem
-    INTEGRATION ||--o{ ENVIRONMENT_CONFIG : owns
-    INTEGRATION ||--o{ MAPPING_SCHEMA : owns
-    INTEGRATION ||--o{ FIELD_MAPPING : owns
-    MAPPING_SCHEMA ||--o{ FIELD_MAPPING : sourceSchema
-    MAPPING_SCHEMA ||--o{ FIELD_MAPPING : targetSchema
-    USER_ACCOUNT ||--o{ ACCOUNT_TOKEN : account
-```
-
 `CatalogSystem` entity'si `systems` tablosundadır; sabit bir rolü yoktur.
 Entegrasyon kaynak/hedef için zorunlu, ara katman için isteğe bağlı olarak bu
 tabloya referans verir. Ortam ayarları,
@@ -28,7 +15,7 @@ silmek entegrasyonu veya FK'lerini boşaltmaz; kullanım varsa silme engellenir.
 bir kez sayılır. Ortak sistem satırları, rol sırasından bağımsız olarak artan ID
 sırasında kilitlenir.
 
-Hesaplar `user_accounts`, ek izinler `user_permissions`, tek kullanımlık
+Her kullanıcı hesabının birden fazla token kaydı olabilir. Hesaplar `user_accounts`, ek izinler `user_permissions`, tek kullanımlık
 token'lar `account_tokens`, hesap audit'i `account_audit`, şifreli posta işleri
 `mail_outbox` tablolarında saklanır. Entity adlarından üretilen fiziksel şema
 ayrıntıları için model sınıfları esas alınmalıdır.
@@ -60,21 +47,6 @@ Roller ve credential izinleri ayrıdır. Oturum sürümü her korunan istekte g�
 hesapla karşılaştırılır. Ayrıntılar: [güvenlik](authentication.md), [kullanıcı yaşam döngüsü](user-management.md).
 
 ## Posta akışı
-
-```mermaid
-sequenceDiagram
-    participant UI as İstemci
-    participant API as Backend
-    participant DB as PostgreSQL
-    participant W as Mail worker
-    participant SMTP as SMTP / Mailpit
-    UI->>API: Davet / hesap işlemi
-    API->>DB: Hesap + token hash + şifreli outbox (transaction)
-    API-->>UI: İşlem yanıtı
-    W->>DB: Bekleyen işleri kilitle ve al
-    W->>SMTP: E-postayı gönder
-    W->>DB: Durum / deneme sayısını güncelle
-```
 
 202/201 yanıtı SMTP teslimini beklemez. Worker'ın SMTP kabulünden sonra commit
 öncesi kesilmesi çift gönderime yol açabilir; token tek kullanımlıdır. Uzun kuyruk
