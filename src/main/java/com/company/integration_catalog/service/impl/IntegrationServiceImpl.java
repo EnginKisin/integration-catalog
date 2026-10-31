@@ -4,19 +4,15 @@ import com.company.integration_catalog.dto.environment_config.EnvironmentConfigR
 import com.company.integration_catalog.dto.integration.IntegrationRequestDTO;
 import com.company.integration_catalog.dto.integration.IntegrationResponseDTO;
 import com.company.integration_catalog.mapper.IntegrationMapper;
-import com.company.integration_catalog.model.entity.Destination;
+import com.company.integration_catalog.model.entity.CatalogSystem;
 import com.company.integration_catalog.model.entity.EnvironmentConfig;
 import com.company.integration_catalog.model.entity.Integration;
-import com.company.integration_catalog.model.entity.Middleware;
-import com.company.integration_catalog.model.entity.Source;
 import com.company.integration_catalog.model.enums.ConfigTarget;
 import com.company.integration_catalog.model.enums.AuthType;
 import com.company.integration_catalog.model.enums.IntegrationStatus;
 import com.company.integration_catalog.repository.EnvironmentConfigRepository;
 import com.company.integration_catalog.repository.IntegrationRepository;
-import com.company.integration_catalog.repository.SourceRepository;
-import com.company.integration_catalog.repository.DestinationRepository;
-import com.company.integration_catalog.repository.MiddlewareRepository;
+import com.company.integration_catalog.repository.SystemRepository;
 import com.company.integration_catalog.service.IntegrationService;
 import com.company.integration_catalog.validation.IntegrationCompletionValidator;
 import com.company.integration_catalog.security.CredentialCrypto;
@@ -40,9 +36,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     private final IntegrationRepository integrationRepository;
     private final EnvironmentConfigRepository configRepository;
     private final IntegrationMapper integrationMapper;
-    private final SourceRepository sourceRepository;
-    private final DestinationRepository destinationRepository;
-    private final MiddlewareRepository middlewareRepository;
+    private final SystemRepository systemRepository;
     private final IntegrationCompletionValidator completionValidator;
     private final CredentialCrypto credentialCrypto;
     private final CredentialAccess credentialAccess;
@@ -82,9 +76,9 @@ public class IntegrationServiceImpl implements IntegrationService {
         Integration existingIntegration = integrationRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
 
-        boolean technicalChange = !Objects.equals(existingIntegration.getSource() == null ? null : existingIntegration.getSource().getId(), request.getSourceId())
-                || !Objects.equals(existingIntegration.getDestination() == null ? null : existingIntegration.getDestination().getId(), request.getDestinationId())
-                || !Objects.equals(existingIntegration.getMiddleware() == null ? null : existingIntegration.getMiddleware().getId(), request.getMiddlewareId())
+        boolean technicalChange = !Objects.equals(existingIntegration.getSourceSystem() == null ? null : existingIntegration.getSourceSystem().getId(), request.getSourceSystemId())
+                || !Objects.equals(existingIntegration.getDestinationSystem() == null ? null : existingIntegration.getDestinationSystem().getId(), request.getDestinationSystemId())
+                || !Objects.equals(existingIntegration.getMiddlewareSystem() == null ? null : existingIntegration.getMiddlewareSystem().getId(), request.getMiddlewareSystemId())
                 || !Objects.equals(existingIntegration.getHasMiddleware(), request.getHasMiddleware())
                 || !Objects.equals(existingIntegration.getIsSync(), request.getIsSync())
                 || existingIntegration.getSourcePayloadFormat() != request.getSourcePayloadFormat()
@@ -111,26 +105,28 @@ public class IntegrationServiceImpl implements IntegrationService {
     }
 
     private void assignSystems(Integration integration, IntegrationRequestDTO request) {
-        Source source = sourceRepository.findByIdForUpdate(request.getSourceId())
-                .orElseThrow(() -> new EntityNotFoundException("Source not found with id: " + request.getSourceId()));
-        Destination destination = destinationRepository.findByIdForUpdate(request.getDestinationId())
-                .orElseThrow(() -> new EntityNotFoundException("Destination not found with id: " + request.getDestinationId()));
-        Middleware middleware = request.getMiddlewareId() == null ? null
-                : middlewareRepository.findByIdForUpdate(request.getMiddlewareId())
-                        .orElseThrow(() -> new EntityNotFoundException("Middleware not found with id: " + request.getMiddlewareId()));
+        java.util.Set<Long> ids = new java.util.TreeSet<>(List.of(request.getSourceSystemId(), request.getDestinationSystemId()));
+        if (request.getMiddlewareSystemId() != null) ids.add(request.getMiddlewareSystemId());
+        java.util.Map<Long, CatalogSystem> selected = new java.util.HashMap<>();
+        for (Long systemId : ids) {
+            selected.put(systemId, systemRepository.findByIdForUpdate(systemId)
+                    .orElseThrow(() -> new EntityNotFoundException("System not found with id: " + systemId)));
+        }
+        CatalogSystem source = selected.get(request.getSourceSystemId());
+        CatalogSystem destination = selected.get(request.getDestinationSystemId());
+        CatalogSystem middleware = selected.get(request.getMiddlewareSystemId());
 
         boolean creating = integration.getId() == null;
-        if ((!source.isActive() && (creating || integration.getSource() == null || !Objects.equals(integration.getSource().getId(), source.getId())))
-                || (!destination.isActive() && (creating || integration.getDestination() == null || !Objects.equals(integration.getDestination().getId(), destination.getId())))
-                || (middleware != null && !middleware.isActive() && (creating || integration.getMiddleware() == null
-                || !Objects.equals(integration.getMiddleware().getId(), middleware.getId())))) {
+        if ((!source.isActive() && (creating || integration.getSourceSystem() == null || !Objects.equals(integration.getSourceSystem().getId(), source.getId())))
+                || (!destination.isActive() && (creating || integration.getDestinationSystem() == null || !Objects.equals(integration.getDestinationSystem().getId(), destination.getId())))
+                || (middleware != null && !middleware.isActive() && (creating || integration.getMiddlewareSystem() == null
+                || !Objects.equals(integration.getMiddlewareSystem().getId(), middleware.getId())))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Inactive systems cannot be selected; an existing selection may be retained");
         }
 
-        // Tüm referanslar doğrulandıktan sonra mevcut entity üzerinde değişiklik yap.
-        integration.setSource(source);
-        integration.setDestination(destination);
-        integration.setMiddleware(middleware);
+        integration.setSourceSystem(source);
+        integration.setDestinationSystem(destination);
+        integration.setMiddlewareSystem(middleware);
     }
 
     @Override
@@ -143,8 +139,6 @@ public class IntegrationServiceImpl implements IntegrationService {
         java.util.Set<String> seen = new java.util.HashSet<>();
         List<EnvironmentConfig> newConfigs = configRequests.stream()
                 .filter(req -> {
-                    // Kritik Kural Kontrolü: Eğer Adım 1'de middleware seçilmediyse, 
-                    // yanlışlıkla gönderilen MIDDLEWARE kartı verilerini veritabanına yazma!
                     if (!integration.getHasMiddleware() && req.getConfigTarget() == ConfigTarget.MIDDLEWARE) {
                         return false;
                     }
@@ -160,7 +154,6 @@ public class IntegrationServiceImpl implements IntegrationService {
                                     && existing.getConfigTarget() == req.getConfigTarget())
                             .findFirst().orElse(null);
                     EnvironmentConfig config = integrationMapper.toConfigEntity(req, integration);
-                    // Update in place to preserve IDs, creation timestamps and credential context.
                     if (old != null) {
                         config.setId(old.getId());
                         config.setCreatedAt(old.getCreatedAt());
@@ -212,7 +205,6 @@ public class IntegrationServiceImpl implements IntegrationService {
         if (!integrationRepository.existsById(id)) {
             throw new EntityNotFoundException("Integration not found with id: " + id);
         }
-        // CascadeType.ALL ve orphanRemoval=true olduğu için alt tablolar (ortamlar, şemalar vb.) otomatik silinecek.
         integrationRepository.deleteById(id);
     }
 

@@ -7,17 +7,34 @@ dosya dönüştürmez veya kaydedilen eşlemeleri çalıştırmaz.
 
 | `format` | İçerik | Alan eşleme |
 |---|---|---|
-| `JSON` | `schemaDefinition` JSON nesnesi; eski istemci sözleşmesi korunur | Var; JSON alan yolları ve tip uyumu doğrulanmaz |
+| `JSON` | `schemaDefinition` veya `samplePayload` JSON nesnesi; ikisi birlikte de verilebilir | Var; AI/append yolları doğrulanır, örneksiz kaynak JSON'da eski manuel sözleşme daha sınırlıdır |
 | `XML` | UTF-8 XML metni + backend'in ürettiği alan ağacı | Var; yolların ağaçta bulunması doğrulanır |
 | `IDOC` | XML gösterimi, `IDOC` elemanı içermeli + üretilen alan ağacı | Var; yolların ağaçta bulunması doğrulanır |
 | `CSV` | UTF-8 metin veya dosya örneği; ayırıcı/başlık seçenekleri | Yok |
 | `EXCEL` | `.xls` veya `.xlsx` dosya örneği | Yok |
 
 Her entegrasyon/`schemaType` çifti için tek kayıt vardır. Tekrar kayıt ID'yi koruyarak
-içeriği ve dosya metaverisini tamamen değiştirir. Ara katman yoksa request örneği
+kaynak içeriğini ve dosya metaverisini değiştirir. Gönderilmeyen bağımsız hedef,
+formatı güncel akışla uyumluysa korunur. Ara katman yoksa request örneği
 `SOURCE_TO_DEST_REQUEST`; varsa iki örnek `SOURCE_TO_MW_REQUEST` ve
 `MW_TO_DEST_REQUEST` olarak tutulur. Senkron akışta karşılık gelen response
 kayıtları da zorunludur; [tam matris](integration-workflow.md#ortam-ve-şema-kuralları).
+
+Ara katman ekleme/kaldırma güncellemesi mevcut örnekleri hemen silmez. Güncel
+akışa uygun ilk örnek başarıyla kaydedildiğinde, önceki akışın uyumsuz şemaları
+ve kaynak veya hedef olarak bu şemalara bağlı alan eşlemeleri temizlenir.
+Ara katman eklenirse `SOURCE_TO_DEST_REQUEST` ve `DEST_TO_SOURCE_RESPONSE`;
+kaldırılırsa dört ara katman şema türü silinir. Güncel akışa uygun mevcut örnekler
+ve kendi aralarındaki eşlemeler korunur. Metin/JSON kaydı ve dosya yüklemede yeni
+örneğin kaydıyla temizlik tek transaction'dadır; hata durumunda eski örnekler ve
+eşlemeler korunur. Başarılı kayıt sonrasındaki şema/eşleme sorguları temizlenmiş
+listeyi döndürür. İnceleme bayrağı ayrıca onaylanmalıdır.
+
+Temizlik örnek kaydında çalışır; uygulamanın yeniden başlatılması veya GET sorgusu
+önceki sürümden kalmış verileri kendiliğinden temizlemez. Bu özellik devreye
+alınmadan önce yeni akışın örnekleri kaydedilmişse, güncel akışa uygun mevcut bir
+örneği aynı içerikle yeniden kaydedin. Bu upsert mevcut ID'yi korur ve eski akışın
+uyumsuz şemalarını/bağlı eşlemelerini aynı transaction'da temizler.
 
 İçerik kaydının `format` değeri aşağıdaki entegrasyon seçimiyle eşleşmelidir:
 
@@ -30,15 +47,29 @@ kayıtları da zorunludur; [tam matris](integration-workflow.md#ortam-ve-şema-k
 
 Ara katmanlı akışta örneğin kaynak CSV, hedef XML olabilir. Bir eşleme çiftinin
 **iki ucu da** eşlemeyi desteklemelidir; CSV → XML çiftinde iki örnek saklanır,
-alan eşlemesi kaydedilmez. Doğrudan akışın her yönü tek bir içerik kaydıdır;
-ayrı kaynak ve hedef payload ağaçları sunulmaz.
+alan eşlemesi kaydedilmez. Doğrudan akışın her yönü tek bir kayıt olarak kalır;
+bu kayıtta bağımsız hedef `targetFormat`, `targetSchemaDefinition`,
+`targetSamplePayload` ve `targetRawContent` alanlarıyla temsil edilir.
+JSON hedef için tanım/örnek nesnesi, XML/IDOC hedef için ham metin gönderilir;
+XML alan ağacını backend üretir. Request'te hedef formatı `destinationPayloadFormat`,
+response'ta ise `sourcePayloadFormat` ile eşleşir. Karma formatlı doğrudan akışı
+tamamlamak ve AI önerisi almak için bağımsız hedef gerekir.
+[Dokuz format çifti ve örnek gövdeler](ai-mapping.md#desteklenen-format-çiftleri-ve-kaynakhedef-örnekleri).
 
 ## Metin veya JSON nesnesi kaydetme
 
 `POST /api/v1/integrations/10/mappings/schemas`, `Content-Type: application/json`.
 Yanıt 200 ve kaydedilen kayıttır. EDITOR/ADMIN ve CSRF gerekir.
 
+Aşağıdaki örnekler doğrudan akış içindir. Entegrasyonun `sourcePayloadFormat`
+değeri gönderilen formatla eşleşmelidir. Ara katmanlı akışta uygun `schemaType`
+ve yukarıdaki tablonun gösterdiği kaynak/hedef formatı kullanılmalıdır.
+
 JSON; `format` verilmezse geriye uyumluluk için JSON kabul edilir:
+
+`schemaDefinition` yoksa `samplePayload` tanım olarak da kullanılır. İkisi de
+yoksa istek reddedilir. AI'ın örnek değerleri kullanması için `samplePayload`
+ayrıca verilebilir; JSON Schema standardının tamamı doğrulanmaz.
 
 ```json
 {
@@ -90,7 +121,9 @@ frontend metni JSON nesnesine çevirip `schemaDefinition` gönderir.
 `POST /api/v1/integrations/10/mappings/schemas/upload`, `multipart/form-data`:
 
 - `metadata`: `application/json` parçası. `schemaType`, **zorunlu** `format`,
-  CSV için isteğe bağlı `csvOptions`; içerik alanları gönderilmez.
+  CSV için isteğe bağlı `csvOptions`. Kaynak dosyanın içeriği `rawContent` veya
+  `schemaDefinition` olarak tekrar gönderilmez. Doğrudan akışta bağımsız hedef
+  formatı ve hedef içeriği ayrıca bu metadata içinde gönderilebilir.
 - `file`: Dosya parçası.
 
 Örnek metadata (Excel):
@@ -225,17 +258,21 @@ Dosyanın ikili içeriği GET JSON yanıtına/base64'e eklenmez. UI eşleme dü�
 
 ## Eşleme ve tamamlama
 
-`POST .../mappings/fields` tam listeyi değiştirmeye devam eder. XML/IDOC yolları,
-hem kayıt sırasında hem tamamlamada üretilen ağaçta aranır. JSON yol/tip
-doğrulaması eski davranışı korur; formatlar arası tip dönüşümü doğrulanmaz.
+`POST .../mappings/fields` eşleme listesinin tamamını değiştirir. XML/IDOC yolları,
+hem kayıt sırasında hem tamamlamada üretilen ağaçta aranır. JSON kaynakta
+`samplePayload`, bağımsız hedefte tanım/örnek varsa yol varlığı da kontrol edilir;
+örneksiz eski kaynak JSON sözleşmesinin kontrolü sınırlıdır. AI job/append akışı
+normalize JSON/XML/IDoc yollarını doğrular; AI önerileri tip/dizi uyumundan da
+geçer. Manuel kayıtta anlamsal doğruluk veya çalışma zamanı tip dönüşümü doğrulanmaz.
 CSV/Excel uçlu eşleme kaydı 400 `MAPPING_NOT_SUPPORTED` döndürür.
 
-İçerik değişikliği mevcut eşlemenin yolunu kaldırıyorsa veya kayıt CSV/Excel'e
-çevrilirken mevcut eşleme varsa 409 `SCHEMA_MAPPING_CONFLICT` döner. Önce ilgili
+İçerik değişikliği güncel akışta korunacak eşlemenin yolunu kaldırıyorsa veya kayıt
+CSV/Excel'e çevrilirken böyle bir eşleme varsa 409 `SCHEMA_MAPPING_CONFLICT` döner. Önce ilgili
 eşlemeleri listeden çıkarıp listeyi yeniden kaydedin; ardından içerik değişikliğini
 yapın. Geçerli yollar korunurken alan ağacı/format değişirse `reviewRequired=true`
 olur; standart inceleme onay akışı kullanılır. Başarısız değişiklik eski içeriği
 ve eşlemeleri değiştirmez. Başarılı içerik/dosya kaydı entegrasyonu DRAFT yapar.
+Akış temizliğinde silinecek eski şemalara bağlı eşlemeler bu kaydı engellemez.
 
 Tamamlama mevcut ortam/topoloji/inceleme kontrollerine ek olarak format uyumunu,
 JSON nesnesinin boş olmamasını, XML/IDOC ayrıştırılabilirliğini ve alan ağacını,
@@ -276,26 +313,28 @@ Tamamlama başarısızlığı mevcut 409 zarfında `details` listesiyle döner.
 
 ## Veritabanı geçişi ve test
 
-Mevcut kurulumlarda deploy öncesi
-[PostgreSQL migration](migrations/20261025-payload-content.sql) uygulanmalıdır.
-Yeni kolonları ekler, eski kayıtları JSON olarak işaretler ve entegrasyonun
-format CHECK kısıtlarına EXCEL ekler. Mevcut `schema_definition NOT NULL`
-korunur; CSV/Excel için boş nesne saklanır. Hibernate `ddl-auto=update` tek başına
-eski enum CHECK kısıtlarını genişletmek için yeterli kabul edilmemelidir.
+Yeni/boş DB'de payload kolonları güncel entity'lerden Hibernate `ddl-auto=update`
+ile oluşturulur. Mevcut DB yükseltilirken format CHECK kısıtları ayrıca kontrol
+edilmelidir; Hibernate eski kısıtlara EXCEL gibi yeni değerleri otomatik
+eklemeyebilir. `schema_definition NOT NULL` olmaya devam eder; CSV/Excel için
+boş nesne saklanır.
 
 Eski kayıtlarda format entegrasyonda XML/IDOC/CSV seçili olsa bile içerik gerçekte
 JSON nesnesi olarak saklanıyordu. Bu kayıtlar otomatik XML/CSV'ye dönüştürülmez;
 uygun formatta içerik yeniden yüklenene kadar tamamlama format uyumsuzluğu döner.
 
-Normal test komutu README'dedir. Gerçek JSONB/TEXT/BYTEA kayıt/okuma testi ayrıca
-opt-in çalışır; varsayılan testlerde atlanır. **Ayrı, boş bir PostgreSQL test DB'si**
+Normal test komutu README'dedir. Gerçek JSONB/TEXT/BYTEA kayıt/okuma, akış temizliği, AI işleri ve sistem kataloğu
+testleri ayrıca opt-in çalışır; varsayılan testlerde atlanır. **Ayrı, boş bir PostgreSQL test DB'si**
 ve yalnızca o DB'ye yetkili `catalog_payload_test` kullanıcısı oluşturun
 (test parolası `payload-test-only-password`; üretimde kullanılmaz). Ardından:
 
 ```sh
-./mvnw -B -Dtest=PayloadPostgresTests -Dcatalog.payload.postgres-test=true \
+./mvnw -B '-Dtest=*PostgresTests' -Dcatalog.payload.postgres-test=true \
   -Dcatalog.payload.test-db-url=jdbc:postgresql://localhost:5432/integration_payload_test_20261025 test
 ```
 
-Test kendi tablolarını mevcut Hibernate geliştirme ayarıyla oluşturur; örnek
-kayıt transaction'ları rollback olur. Bootstrap test kullanıcısı DB'de kalabilir.
+Testler tabloları mevcut Hibernate geliştirme ayarıyla oluşturur. Payload roundtrip
+testlerinde kayıt transaction'ları rollback olur. Akış temizliği testleri commit
+ve rollback'i doğrulamak için bağımsız transaction'lar kullanır ve kendi örnek
+kayıtlarını test sonunda siler. AI DB testleri kalıcı iş, sonuç, onay/idempotency,
+süre dolumu ve cascade temizliğini doğrular. Bootstrap test kullanıcısı DB'de kalabilir.

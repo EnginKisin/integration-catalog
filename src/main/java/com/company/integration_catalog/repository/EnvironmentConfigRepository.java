@@ -12,13 +12,10 @@ import java.util.Optional;
 @Repository
 public interface EnvironmentConfigRepository extends JpaRepository<EnvironmentConfig, Long> {
 
-    // Bir entegrasyona ait tüm ortam konfigürasyonlarını getirir
     List<EnvironmentConfig> findByIntegrationId(Long integrationId);
 
-    // Belirli bir entegrasyonun sadece Middleware veya sadece Destination konfigürasyonlarını getirir
     List<EnvironmentConfig> findByIntegrationIdAndConfigTarget(Long integrationId, ConfigTarget configTarget);
 
-    // Nokta atışı sorgu: Bir entegrasyonun TEST ortamındaki MIDDLEWARE bilgisi nedir?
     Optional<EnvironmentConfig> findByIntegrationIdAndConfigTargetAndEnvironmentType(
             Long integrationId, ConfigTarget configTarget, EnvironmentType environmentType);
 }

@@ -149,8 +149,8 @@ class MappingServiceImplTests {
         existing.setRawContent("<order><id>42</id></order>");
         existing.setSchemaDefinition(PayloadSchemas.xmlDefinition(existing.getRawContent(), false));
         when(schemaRepository.findByIntegrationIdAndSchemaType(1L, SchemaType.SOURCE_TO_DEST_REQUEST)).thenReturn(Optional.of(existing));
-        when(fieldMappingRepository.findByIntegrationId(1L)).thenReturn(List.of(FieldMapping.builder()
-                .sourceSchema(existing).targetSchema(existing).sourceFieldPath("/order/id").targetFieldPath("/order/id").build()));
+        integration.getFieldMappings().add(FieldMapping.builder()
+                .sourceSchema(existing).targetSchema(existing).sourceFieldPath("/order/id").targetFieldPath("/order/id").build());
         assertThatThrownBy(() -> service.saveSchema(1L, MappingSchemaRequestDTO.builder()
                 .schemaType(SchemaType.SOURCE_TO_DEST_REQUEST).format(PayloadFormat.XML).rawContent("<order><name>Ali</name></order>").build()))
                 .isInstanceOfSatisfying(PayloadValidationException.class, ex -> {
@@ -167,8 +167,8 @@ class MappingServiceImplTests {
         MappingSchema existing = schema(10L);
         existing.setSchemaDefinition(Map.of("type", "object"));
         when(schemaRepository.findByIntegrationIdAndSchemaType(1L, SchemaType.SOURCE_TO_DEST_REQUEST)).thenReturn(Optional.of(existing));
-        when(fieldMappingRepository.findByIntegrationId(1L)).thenReturn(List.of(FieldMapping.builder()
-                .sourceSchema(existing).targetSchema(existing).sourceFieldPath("id").targetFieldPath("id").build()));
+        integration.getFieldMappings().add(FieldMapping.builder()
+                .sourceSchema(existing).targetSchema(existing).sourceFieldPath("id").targetFieldPath("id").build());
         assertThatThrownBy(() -> service.saveSchema(1L, MappingSchemaRequestDTO.builder()
                 .schemaType(SchemaType.SOURCE_TO_DEST_REQUEST).format(PayloadFormat.CSV).rawContent("id\n1").build()))
                 .isInstanceOf(PayloadValidationException.class);
@@ -206,13 +206,73 @@ class MappingServiceImplTests {
         assertThatThrownBy(() -> service.getSampleFile(2L, 10L)).isInstanceOf(EntityNotFoundException.class);
     }
 
+    @Test
+    void updatingCurrentFlowSchemaDiscardsObsoleteLinksAndPreservesCurrentLinks() {
+        integration.setHasMiddleware(true);
+        MappingSchema obsolete = schema(9L);
+        obsolete.setSchemaType(SchemaType.SOURCE_TO_DEST_REQUEST);
+        MappingSchema existing = schema(10L);
+        existing.setSchemaType(SchemaType.SOURCE_TO_MW_REQUEST);
+        existing.setFormat(PayloadFormat.XML);
+        existing.setRawContent("<order><id>42</id></order>");
+        existing.setSchemaDefinition(PayloadSchemas.xmlDefinition(existing.getRawContent(), false));
+        MappingSchema target = schema(20L);
+        target.setSchemaType(SchemaType.MW_TO_DEST_REQUEST);
+        target.setSchemaDefinition(Map.of("type", "object"));
+        integration.getMappingSchemas().addAll(List.of(obsolete, existing, target));
+        FieldMapping retained = FieldMapping.builder().sourceSchema(existing).targetSchema(target)
+                .sourceFieldPath("/order/id").targetFieldPath("id").build();
+        integration.getFieldMappings().addAll(List.of(
+                // This obsolete link must not block the new XML content with a path conflict.
+                FieldMapping.builder().sourceSchema(existing).targetSchema(obsolete)
+                        .sourceFieldPath("/order/removed").targetFieldPath("id").build(),
+                FieldMapping.builder().sourceSchema(obsolete).targetSchema(existing)
+                        .sourceFieldPath("id").targetFieldPath("/order/removed").build(),
+                retained));
+        when(schemaRepository.findByIntegrationIdAndSchemaType(1L, SchemaType.SOURCE_TO_MW_REQUEST))
+                .thenReturn(Optional.of(existing));
+        when(schemaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        doAnswer(invocation -> {
+            assertThat(integration.getFieldMappings()).containsExactly(retained);
+            assertThat(integration.getMappingSchemas()).contains(obsolete);
+            return null;
+        }).when(fieldMappingRepository).flush();
+
+        var response = service.saveSchema(1L, MappingSchemaRequestDTO.builder()
+                .schemaType(SchemaType.SOURCE_TO_MW_REQUEST).format(PayloadFormat.XML)
+                .rawContent("<order><id>99</id></order>").build());
+
+        assertThat(response.getId()).isEqualTo(existing.getId());
+        assertThat(integration.getMappingSchemas()).containsExactly(existing, target);
+        assertThat(integration.getFieldMappings()).containsExactly(retained);
+        verify(fieldMappingRepository).flush();
+    }
+
+    @Test
+    void invalidNewContentDoesNotRemoveObsoleteSchemasOrMappings() {
+        integration.setHasMiddleware(true);
+        MappingSchema obsolete = schema(9L);
+        obsolete.setSchemaType(SchemaType.SOURCE_TO_DEST_REQUEST);
+        integration.getMappingSchemas().add(obsolete);
+        FieldMapping link = FieldMapping.builder().sourceSchema(obsolete).targetSchema(obsolete).build();
+        integration.getFieldMappings().add(link);
+
+        assertThatThrownBy(() -> service.saveSchema(1L, MappingSchemaRequestDTO.builder()
+                .schemaType(SchemaType.SOURCE_TO_MW_REQUEST).format(PayloadFormat.XML)
+                .rawContent("<broken>").build())).isInstanceOf(PayloadValidationException.class);
+
+        assertThat(integration.getMappingSchemas()).containsExactly(obsolete);
+        assertThat(integration.getFieldMappings()).containsExactly(link);
+        verifyNoInteractions(schemaRepository, fieldMappingRepository);
+    }
+
     private MappingSchema schema(Long id) {
         return MappingSchema.builder().id(id).integration(integration).build();
     }
 
-    private FieldMappingRequestDTO request(Long sourceId, Long targetId) {
+    private FieldMappingRequestDTO request(Long sourceSystemId, Long targetId) {
         return FieldMappingRequestDTO.builder()
-                .sourceSchemaId(sourceId).targetSchemaId(targetId)
+                .sourceSchemaId(sourceSystemId).targetSchemaId(targetId)
                 .sourceFieldPath("customer.id").targetFieldPath("client.id")
                 .build();
     }

@@ -26,8 +26,6 @@ import java.util.stream.Collectors;
 @Component
 public class IntegrationMapper {
 
-    // --- Integration Dönüşümleri ---
-
     public Integration toEntity(IntegrationRequestDTO request) {
         if (request == null) return null;
 
@@ -56,10 +54,12 @@ public class IntegrationMapper {
                 .id(entity.getId())
                 .name(entity.getName())
                 .description(entity.getDescription())
-                // İlişkili tablolardan güvenli bir şekilde id ve name çekiyoruz
-                .sourceId(entity.getSource() != null ? entity.getSource().getId() : null)
-                .destinationId(entity.getDestination() != null ? entity.getDestination().getId() : null)
-                .middlewareId(entity.getMiddleware() != null ? entity.getMiddleware().getId() : null)
+                .sourceSystemId(entity.getSourceSystem() != null ? entity.getSourceSystem().getId() : null)
+                .sourceSystemName(entity.getSourceSystem() != null ? entity.getSourceSystem().getName() : null)
+                .destinationSystemId(entity.getDestinationSystem() != null ? entity.getDestinationSystem().getId() : null)
+                .destinationSystemName(entity.getDestinationSystem() != null ? entity.getDestinationSystem().getName() : null)
+                .middlewareSystemId(entity.getMiddlewareSystem() != null ? entity.getMiddlewareSystem().getId() : null)
+                .middlewareSystemName(entity.getMiddlewareSystem() != null ? entity.getMiddlewareSystem().getName() : null)
                 .sourcePayloadFormat(entity.getSourcePayloadFormat())
                 .destinationPayloadFormat(entity.getDestinationPayloadFormat())
                 .isSync(entity.getIsSync())
@@ -68,12 +68,12 @@ public class IntegrationMapper {
                 .reviewRequired(entity.isReviewRequired())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .environmentTypes(configs.stream().map(EnvironmentConfigResponseDTO::getEnvironmentType)
+                        .filter(java.util.Objects::nonNull).distinct().sorted().toList())
                 .environmentConfigs(configs)
                 .build();
     }
 
-
-    // --- EnvironmentConfig Dönüşümleri ---
 
     public EnvironmentConfig toConfigEntity(EnvironmentConfigRequestDTO request, Integration integration) {
         if (request == null) return null;
@@ -108,10 +108,6 @@ public class IntegrationMapper {
                 .build();
     }
 
-    // ... IntegrationMapper.java içerisine eklenecek yeni metotlar:
-
-    // --- MappingSchema Dönüşümleri ---
-
     public MappingSchema toSchemaEntity(MappingSchemaRequestDTO request, Integration integration) {
         if (request == null) return null;
 
@@ -129,6 +125,11 @@ public class IntegrationMapper {
                 .id(entity.getId())
                 .schemaType(entity.getSchemaType())
                 .schemaDefinition(entity.getSchemaDefinition())
+                .samplePayload(entity.getSamplePayload())
+                .targetSchemaDefinition(entity.getTargetSchemaDefinition())
+                .targetSamplePayload(entity.getTargetSamplePayload())
+                .targetFormat(PayloadSchemas.hasIndependentTarget(entity) ? PayloadSchemas.sideFormat(entity, true) : null)
+                .targetRawContent(entity.getTargetRawContent())
                 .format(PayloadSchemas.format(entity))
                 .rawContent(entity.getRawContent())
                 .mappingSupported(PayloadSchemas.format(entity).supportsFieldMapping())
@@ -141,8 +142,6 @@ public class IntegrationMapper {
                         + entity.getIntegration().getId() + "/mappings/schemas/" + entity.getId() + "/sample")
                 .build();
     }
-
-    // --- FieldMapping (Çizgiler) Dönüşümleri ---
 
     public FieldMapping toMappingEntity(FieldMappingRequestDTO request, 
                                         Integration integration, 
@@ -172,6 +171,9 @@ public class IntegrationMapper {
                 .targetFieldPath(entity.getTargetFieldPath())
                 .isAiGenerated(entity.getIsAiGenerated())
                 .aiConfidenceScore(entity.getAiConfidenceScore())
+                .origin(entity.getOrigin() == null ? (Boolean.TRUE.equals(entity.getIsAiGenerated()) ? "AI_ACCEPTED" : "MANUAL") : entity.getOrigin())
+                .aiJobId(entity.getAiJobId())
+                .aiSuggestionId(entity.getAiSuggestionId())
                 .build();
     }
 }

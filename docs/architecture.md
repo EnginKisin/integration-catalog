@@ -8,9 +8,9 @@ erişimini üstlenir. Güvenlik filtreleri oturum, CSRF, rol ve güncel hesap ko
 
 ```mermaid
 erDiagram
-    SOURCE ||--o{ INTEGRATION : source
-    DESTINATION ||--o{ INTEGRATION : destination
-    MIDDLEWARE o|--o{ INTEGRATION : middleware
+    SYSTEM ||--o{ INTEGRATION : sourceSystem
+    SYSTEM ||--o{ INTEGRATION : destinationSystem
+    SYSTEM o|--o{ INTEGRATION : middlewareSystem
     INTEGRATION ||--o{ ENVIRONMENT_CONFIG : owns
     INTEGRATION ||--o{ MAPPING_SCHEMA : owns
     INTEGRATION ||--o{ FIELD_MAPPING : owns
@@ -19,10 +19,14 @@ erDiagram
     USER_ACCOUNT ||--o{ ACCOUNT_TOKEN : account
 ```
 
-Source ve destination zorunlu, middleware seçime bağlıdır. Ortam ayarları,
+`CatalogSystem` entity'si `systems` tablosundadır; sabit bir rolü yoktur.
+Entegrasyon kaynak/hedef için zorunlu, ara katman için isteğe bağlı olarak bu
+tabloya referans verir. Ortam ayarları,
 şemalar ve alan eşlemeleri entegrasyon aggregate'ına aittir. Ortak katalog kaydını
 silmek entegrasyonu veya FK'lerini boşaltmaz; kullanım varsa silme engellenir.
-`usageCount` taslak ve tamamlanmış kayıtların tamamını içerir.
+`usageCount` taslak ve tamamlanmış kayıtları üç rolde sayar; aynı entegrasyon
+bir kez sayılır. Ortak sistem satırları, rol sırasından bağımsız olarak artan ID
+sırasında kilitlenir.
 
 Hesaplar `user_accounts`, ek izinler `user_permissions`, tek kullanımlık
 token'lar `account_tokens`, hesap audit'i `account_audit`, şifreli posta işleri
@@ -37,9 +41,17 @@ kilitlenir. Katalog aktiflik/silme kontrolleri ile yeni bağlantı atama aynı s
 kilitleyerek sıralanır. Son aktif ADMIN koruması ve token tüketimi de transaction
 ve satır kilitleri kullanır. Gerçek PostgreSQL davranışı ayrıca doğrulanmalıdır.
 
-Entegrasyonda entity sürümlemesi bulunur; API yanıtta sürüm/ETag vermez ve
-istemciden beklenen sürüm almaz. Tarayıcıda uzun süre açık kalan formun başka
-kullanıcının düzenlemesini ezmesini bütünüyle önleyen bir protokol henüz yoktur.
+Entegrasyonda entity sürümlemesi bulunur; mevcut entegrasyon PUT ve bütün listeyi
+değiştiren mapping POST istemciden beklenen sürüm almaz. Bu eski akışlarda uzun
+süre açık kalan formun başka kullanıcının düzenlemesini ezmesini bütünüyle önleyen
+bir protokol henüz yoktur. Yeni AI context/job/append akışı ise şemalar ve mevcut
+eşlemelerden hesaplanan `contextRevision` ile eski sürümden kayıt yapılmasını reddeder.
+
+Ara katman ekleme/kaldırma sırasında alt veriler korunur. Güncel akışa uygun ilk
+başarılı örnek kaydı eski akışın uyumsuz şemalarını ve bunlara bağlı eşlemeleri
+temizler. Eşlemeler şemalardan önce silinir; yeni kayıt ve temizlik tek transaction
+içindedir. Hata durumunda eski veriler korunur. Sözleşme
+[payload belgesindedir](payload-content.md#format-ve-akış-modeli).
 
 Parolalar PBKDF2 ile hash'lenir; dış sistem bilgileri geri çözülebilir AES-GCM
 şifrelemesiyle korunur. Token doğrulama tablosunda SHA-256 hash vardır; e-posta
@@ -70,19 +82,36 @@ beklemesinde token postaya ulaşmadan sona erebilir. `mail-status` pending/faile
 sayılarını verir; gelen kutusuna teslim edildiğini ölçmez. SMTP arızası katalog
 readiness'ını düşürmez.
 
-## Mevcut sınırlar
+## Yayın ve üretim sınırları
 
-- Entegrasyon çalıştırma, dış sistem bağlantı testi ve AI mapping yoktur.
-- JSON Schema standardı, JSON alan yolu varlığı ve tip dönüşümü doğrulanmaz.
-  XML/IDOC alan yolları kontrol edilir; CSV/Excel yalnızca örnek dosya olarak saklanır.
-- Tekil şema silme yoktur; topoloji değişiminde korunmuş uyumsuz şemalar tamamlamayı engelleyebilir.
+Backend yerel kullanım ve demo/MVP kapsamındadır; üretim kabulü tamamlanmış
+değildir. [CI ve repo kontrolü](../README.md#paylaşım-kontrolleri-ve-ci) yerel
+kaynakları doğrulamaya yardımcı olur; uzaktaki Actions sonucu ayrıca izlenmelidir.
+
+
+- Entegrasyon çalıştırma ve dış sistem bağlantı testi yoktur. İsteğe bağlı
+  [AI alan önerileri](ai-mapping.md) JSON/XML/IDOC çiftlerini destekler; kullanıcı onayı gerekir.
+  Sağlayıcı (`ollama`/`gemini`) backend ayarıyla seçilir; her iki adaptör aynı
+  alan doğrulama ve append kurallarını kullanır. Gemini seçilirse backend Google'a
+  alan profillerini/isteğe bağlı örnek değerleri gönderir; otomatik fallback yoktur.
+- Tam JSON Schema standardı ve çalışma zamanı tip dönüşümleri doğrulanmaz.
+  Yeni AI/append akışı JSON/XML/IDOC alan yollarını doğrular; eski tek tanımlı
+  JSON manuel sözleşmesinde yol kontrolü sınırlıdır. CSV/Excel yalnızca örnek dosya olarak saklanır.
+- Tekil şema silme endpoint'i yoktur.
 - Credential map'lerinin auth türüne göre zorunlu anahtar sözleşmesi yoktur.
 - Secret görüntülemede yeniden parola/MFA ve kalıcı DB audit endpoint'i yoktur.
 - Session ve auth hız limiti instance belleğindedir; dağıtık session/limit kurulmadı.
 - Katalog/entegrasyon listelerinde sayfalama yoktur; büyük veri performansı ayrıca ölçülmelidir.
 - `ddl-auto=update` kullanılır; Flyway/Liquibase ile sürümlü migration henüz yoktur.
 - Bütün framework hataları tek bir ayrıntılı alan hatası biçimine dönüştürülmez.
-- Frontend hesap sayfaları, gerçek SMTP sağlayıcısı ve üretim HTTPS/reverse proxy kurulumu bu repoda tamamlanmış değildir.
+- Frontend bu repoda bulunmaz; hesap sayfaları ve üretim reverse proxy ayrı yapılandırılır.
+- Compose localhost/HTTP geliştirme içindir. Üretimde HTTPS, Secure cookie,
+  kısıtlı DB kullanıcısı, izleme/log yönetimi ve aynı anahtarla yedekten dönüş
+  ayrıca hazırlanmalıdır. Container'ın `unhealthy` olması otomatik restart değildir.
+- Bağımlılık/secret taraması, genel exception loglarının gözden geçirilmesi ve
+  gerçek PostgreSQL üzerinde eşzamanlı yük/kilit testleri üretim kabulünden ayrıdır.
+- Gemini'ye gönderilebilecek örnek veriler ve kullanım/kota sınırları belirlenmelidir;
+  sentetik model testleri kurumsal eşleme doğruluğunu garanti etmez.
 
 ## Test kapsamı ve doğrulama yöntemi
 
@@ -91,8 +120,13 @@ readiness'ını düşürmez.
 | IntegrationServiceImpl / MappingServiceImpl testleri | Güncelleme, şema sahipliği, liste kaydetme |
 | PayloadSchemas / PayloadWeb testleri | XML/IDOC alan ağacı, CSV/Excel dosyaları, boyut/format/yetki ve eşleme engelleri |
 | PayloadPostgresTests (opt-in) | Gerçek PostgreSQL JSONB/TEXT/BYTEA kayıt/okuma ve upsert; [çalıştırma](payload-content.md#veritabanı-geçişi-ve-test) |
+| SystemCatalogPostgresTests (opt-in) | Ortak kimlikler, üç rolde tekil kullanım sayısı, sistem adları, ortam türleri, pasif seçim ve eski tabloların yokluğu |
+| MappingFlowPostgresTests (opt-in) | İki yönde akış değişiminde metin/dosya kaydıyla temizlik, başka entegrasyonu koruma ve temizlik sonrası hatada rollback |
 | IntegrationCompletion / IntegrationSystemSelection | Şema matrisi, inceleme, taslağa dönüş, pasif seçim |
-| Source / Destination / MiddlewareManagement | Güncelleme, kullanım sayısı, aktiflik, silme |
+| SystemManagement | Güncelleme, kullanım sayısı, aktiflik, silme |
+| AiMappingService / AiMappingWorker / AiMappingWeb | Backend sağlayıcı seçimi, kuyruk, korunmuş bağlantılar, onay/idempotency, rol/CSRF, hata ve sağlayıcı değişimi |
+| MappingSuggestionProtocol / OllamaProvider / GeminiProvider / AiProviderHttpClient | Dokuz format çifti, kısa alan kimlikleri, ortak tip/dizi kuralları, HTTP hata/timeout/yanıt sınırı; dış HTTP taklit edilir |
+| AiMappingPostgresTests (opt-in) | Kalıcı iş/JSONB sonucu, onay kaydı, dokuz format çifti, eski bağlam reddi, süre dolumu ve AI/mapping kayıtlarının cascade temizliği |
 | Security / CredentialSecurity / CatalogManagementWeb | Gerçek Spring Security filtreleri, roller, CSRF, secret yetkileri |
 | CredentialCrypto / CredentialMigration | Şifreleme, yanlış anahtar, bozulma, mock JDBC ile dönüşüm |
 | AccountLifecycle / AccountLifecycleWeb / AccountMail | Davet, reset, doğrulama, oturum iptali, outbox |
@@ -101,20 +135,24 @@ readiness'ını düşürmez.
 
 `PayloadPostgresTests`, gerçek PostgreSQL üzerinde beş formatın JSONB/TEXT/BYTEA
 kayıt/okuma ve upsert davranışını doğrular; test transaction'ları rollback olur.
-Payload SQL migration'ı ayrıca eski şemayı temsil eden izole bir şemada denenmiş,
-JSON içeriğinin korunması ve EXCEL CHECK kısıtları kontrol edilmiştir. Bu kontrol,
-üretim verisiyle tam yükseltme veya bütün geçmiş sürümlerden geçiş testi değildir.
+`MappingFlowPostgresTests`, ayrı transaction'larda commit ve temizlik sonrası
+hata/rollback davranışını doğrular; kendi test kayıtlarını temizler.
+Bu sınıflar, `SystemCatalogPostgresTests` ve `AiMappingPostgresTests`,
+`catalog.payload.postgres-test=true` ile etkinleşir.
 
-Hesap/katalog kilitlerinin eşzamanlılık davranışı, cascade silme, credential
-migration'ı ve gerçek SMTP teslimi için bu testler yeterli değildir.
+Hesap/katalog kilitlerinin eşzamanlılığı, bütün alt veri türlerinin birlikte
+cascade silinmesi, eski sürümlerden şema geçişi ve gerçek SMTP teslimi bu testlerin
+kapsamında değildir. AI/mapping alt kayıtlarının entegrasyon silindiğinde
+temizlenmesi ayrı DB testinde doğrulanır.
+Credential dönüşümünün JDBC çağrıları mock ile test edilir. HTTP güvenlik testleri
+gerçek filtreleri kullanır; `RequestValidationTests` yalnızca DTO/controller
+doğrulamaları için güvenlik filtrelerini kapatır.
 `IntegrationCatalogApplicationTests` tam uygulama context'ini açar ve çalışan
 DB/config gerektirir. Normal test komutu [başlangıç belgesinde](../README.md),
 opt-in DB testi [payload belgesindedir](payload-content.md#veritabanı-geçişi-ve-test).
+Canlı Ollama/Gemini denemeleri otomatik testlerden ayrıdır;
+[AI doğrulama notları](ai-mapping.md#doğrulama) kullanılan örnekleri ve sınırlarını açıklar.
 
-Canlıya çıkış değerlendirmesinde gerçek DB ile eski veriyi yükseltme ve yedekten
-dönüş, eşzamanlı silme/atama, entegrasyon cascade silme, gerçek SMTP akışları ve
-Docker readiness geçişleri ayrıca sınanmalıdır. Mevcut belgeler bu kontrollerin
-tamamlandığı veya backend'in üretim kabulünün yapıldığı iddiasını taşımaz.
 
 ## Erişim ve dosya işleme sınırları
 

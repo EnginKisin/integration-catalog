@@ -1,10 +1,10 @@
 package com.company.integration_catalog.security;
 
 import com.company.integration_catalog.controller.*;
-import com.company.integration_catalog.model.entity.*;
+import com.company.integration_catalog.model.entity.CatalogSystem;
 import com.company.integration_catalog.repository.*;
 import com.company.integration_catalog.service.IntegrationService;
-import com.company.integration_catalog.service.impl.*;
+import com.company.integration_catalog.service.impl.SystemServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
@@ -22,73 +22,76 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest({SourceController.class, DestinationController.class, MiddlewareController.class, IntegrationController.class})
-@Import({SecurityConfig.class, CredentialAccess.class, AccountDetailsService.class,
-        SourceServiceImpl.class, DestinationServiceImpl.class, MiddlewareServiceImpl.class})
+@WebMvcTest({SystemController.class, IntegrationController.class})
+@Import({SecurityConfig.class, CredentialAccess.class, AccountDetailsService.class, SystemServiceImpl.class})
 class CatalogManagementWebTests {
     @Autowired MockMvc mvc;
-    @MockitoBean SourceRepository sources;
-    @MockitoBean DestinationRepository destinations;
-    @MockitoBean MiddlewareRepository middlewares;
+    @MockitoBean SystemRepository systems;
     @MockitoBean IntegrationRepository integrations;
     @MockitoBean UserAccountRepository users;
     @MockitoBean IntegrationService integrationService;
 
     static Stream<Arguments> rolesAndOperations() {
-        return Stream.of("sources", "destinations", "middlewares").flatMap(type ->
-                Stream.of("VIEWER", "EDITOR", "ADMIN").flatMap(role -> Stream.of("GET", "PUT", "PATCH", "DELETE")
-                        .map(method -> Arguments.of(type, role, method))));
+        return Stream.of("VIEWER", "EDITOR", "ADMIN").flatMap(role ->
+                Stream.of("GET", "POST", "PUT", "PATCH", "DELETE").map(method -> Arguments.of(role, method)));
     }
 
     @ParameterizedTest @MethodSource("rolesAndOperations")
-    void enforcesRolesForAllCatalogTypes(String type, String role, String method) throws Exception {
+    void enforcesSystemCatalogRoles(String role, String method) throws Exception {
         boolean allowed = method.equals("GET") || (method.equals("DELETE") ? role.equals("ADMIN") : !role.equals("VIEWER"));
-        if (allowed) stub(type, method.equals("GET"), 0);
-        String path = "/api/v1/" + type + "/1" + (method.equals("PATCH") ? "/active" : "");
-        String body = method.equals("PATCH") ? "{\"active\":false}" : "{\"name\":\"Renamed\",\"description\":\"Updated\"}";
+        if (allowed) stub(method.equals("GET"), 0);
+        String path = "/api/v1/systems" + (method.equals("POST") ? "" : "/1") + (method.equals("PATCH") ? "/active" : "");
+        String body = method.equals("PATCH") ? "{\"active\":false}" : "{\"name\":\"SAP\",\"description\":\"ERP\"}";
+        int expected = method.equals("POST") ? 201 : method.equals("DELETE") ? 204 : 200;
         mvc.perform(request(HttpMethod.valueOf(method), path).with(user("test").roles(role)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().is(allowed ? (method.equals("DELETE") ? 204 : 200) : 403));
-        if (!allowed) verifyNoInteractions(sources, destinations, middlewares, integrations);
+                .andExpect(status().is(allowed ? expected : 403));
+        if (!allowed) verifyNoInteractions(systems, integrations);
     }
 
-    @ParameterizedTest @ValueSource(strings = {"sources", "destinations", "middlewares"})
-    void deletionConflictExplainsUsageCount(String type) throws Exception {
-        stub(type, false, 5);
-        mvc.perform(delete("/api/v1/" + type + "/1").with(user("admin").roles("ADMIN")).with(csrf()))
+    @Test void deletionConflictExplainsDistinctIntegrationUsage() throws Exception {
+        stub(false, 5);
+        mvc.perform(delete("/api/v1/systems/1").with(user("admin").roles("ADMIN")).with(csrf()))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("5 integration")));
-        verify(sources, never()).delete(any()); verify(destinations, never()).delete(any()); verify(middlewares, never()).delete(any());
+        verify(systems, never()).delete(any());
     }
 
-    @ParameterizedTest @ValueSource(strings = {"sources", "destinations", "middlewares"})
-    void existingRecordsCanBeListedTogetherOrFilteredByActiveState(String type) throws Exception {
-        switch (type) {
-            case "sources" -> when(sources.findAll()).thenReturn(List.of(Source.builder().id(1L).active(true).build(), Source.builder().id(2L).active(false).build()));
-            case "destinations" -> when(destinations.findAll()).thenReturn(List.of(Destination.builder().id(1L).active(true).build(), Destination.builder().id(2L).active(false).build()));
-            case "middlewares" -> when(middlewares.findAll()).thenReturn(List.of(Middleware.builder().id(1L).active(true).build(), Middleware.builder().id(2L).active(false).build()));
-        }
-        String path = "/api/v1/" + type;
-        mvc.perform(get(path).with(user("test").roles("VIEWER")))
+    @Test void listsAllSystemsOrFiltersByActiveState() throws Exception {
+        when(systems.findAll()).thenReturn(List.of(CatalogSystem.builder().id(1L).active(true).build(),
+                CatalogSystem.builder().id(2L).active(false).build()));
+        mvc.perform(get("/api/v1/systems").with(user("test").roles("VIEWER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
-        mvc.perform(get(path + "?active=true").with(user("test").roles("VIEWER")))
+        mvc.perform(get("/api/v1/systems?active=true").with(user("test").roles("VIEWER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].active").value(true)).andExpect(jsonPath("$[0].usageCount").value(0));
-        mvc.perform(get(path + "?active=false").with(user("test").roles("VIEWER")))
+        mvc.perform(get("/api/v1/systems?active=false").with(user("test").roles("VIEWER")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(2));
     }
 
-    @ParameterizedTest @ValueSource(strings = {"sources", "destinations", "middlewares"})
-    void updatesValidateBodyAndMissingRecordsReturn404(String type) throws Exception {
-        String path = "/api/v1/" + type + "/99";
-        mvc.perform(put(path).with(user("test").roles("EDITOR")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"  \",\"description\":\"Updated\"}"))
+    @Test void validatesBodiesAndReportsMissingSystem() throws Exception {
+        mvc.perform(put("/api/v1/systems/99").with(user("test").roles("EDITOR")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\",\"description\":\"ERP\"}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(patch(path + "/active").with(user("test").roles("EDITOR")).with(csrf())
+        mvc.perform(patch("/api/v1/systems/99/active").with(user("test").roles("EDITOR")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
-        verifyNoInteractions(sources, destinations, middlewares);
-        mvc.perform(delete(path).with(user("test").roles("ADMIN")).with(csrf()))
+        verifyNoInteractions(systems);
+        mvc.perform(delete("/api/v1/systems/99").with(user("test").roles("ADMIN")).with(csrf()))
                 .andExpect(status().isNotFound());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"sources", "destinations", "middlewares"})
+    void removedCatalogRoutesAreNotAuthorized(String removed) throws Exception {
+        mvc.perform(get("/api/v1/" + removed).with(user("admin").roles("ADMIN")))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(systems, integrations);
+    }
+
+    @Test void systemWritesRequireCsrf() throws Exception {
+        mvc.perform(post("/api/v1/systems").with(user("admin").roles("ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"SAP\",\"description\":\"ERP\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(systems);
     }
 
     @ParameterizedTest @CsvSource({"VIEWER,403", "EDITOR,200", "ADMIN,200"})
@@ -100,38 +103,19 @@ class CatalogManagementWebTests {
         else verifyNoInteractions(integrationService);
     }
 
-    @Test void reviewCannotBeConfirmedWithFalseOrMissingAcknowledgement() throws Exception {
+    @Test void reviewRequiresExplicitAcknowledgement() throws Exception {
         for (String body : List.of("{}", "{\"confirmed\":false}")) {
             mvc.perform(post("/api/v1/integrations/1/review/confirm").with(user("test").roles("EDITOR")).with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON).content(body))
-                    .andExpect(status().isBadRequest());
+                            .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
         }
         verifyNoInteractions(integrationService);
     }
 
-    private void stub(String type, boolean readOnly, long usage) {
-        switch (type) {
-            case "sources" -> {
-                var item = Source.builder().id(1L).name("Source").description("Description").build();
-                if (readOnly) when(sources.findById(1L)).thenReturn(Optional.of(item));
-                else when(sources.findByIdForUpdate(1L)).thenReturn(Optional.of(item));
-                lenient().when(sources.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-                when(integrations.countBySourceId(1L)).thenReturn(usage);
-            }
-            case "destinations" -> {
-                var item = Destination.builder().id(1L).name("Destination").description("Description").build();
-                if (readOnly) when(destinations.findById(1L)).thenReturn(Optional.of(item));
-                else when(destinations.findByIdForUpdate(1L)).thenReturn(Optional.of(item));
-                lenient().when(destinations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-                when(integrations.countByDestinationId(1L)).thenReturn(usage);
-            }
-            case "middlewares" -> {
-                var item = Middleware.builder().id(1L).name("Middleware").description("Description").build();
-                if (readOnly) when(middlewares.findById(1L)).thenReturn(Optional.of(item));
-                else when(middlewares.findByIdForUpdate(1L)).thenReturn(Optional.of(item));
-                lenient().when(middlewares.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-                when(integrations.countByMiddlewareId(1L)).thenReturn(usage);
-            }
-        }
+    private void stub(boolean readOnly, long usage) {
+        var item = CatalogSystem.builder().id(1L).name("SAP").description("ERP").build();
+        if (readOnly) when(systems.findById(1L)).thenReturn(Optional.of(item));
+        else lenient().when(systems.findByIdForUpdate(1L)).thenReturn(Optional.of(item));
+        lenient().when(systems.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(integrations.countBySystemId(1L)).thenReturn(usage);
     }
 }

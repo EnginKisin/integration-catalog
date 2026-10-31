@@ -11,10 +11,11 @@ Bu, dış sistem erişim bilgilerinin şifrelenmesinden ayrı bir işlemdir.
 - `CATALOG_ADMIN_USERNAME`: 1–100 karakter; harf, rakam, nokta, tire veya alt çizgi.
 - `CATALOG_ADMIN_PASSWORD`: 12–128 karakter; yalnızca boşluklardan oluşmamalı.
 
-Varsayılan kullanıcı/parola yoktur. İlk kurulumda bu bilgiler eksikse uygulama
-başlamaz. Hesaplar varsa yeniden başlatma mevcut kullanıcıları veya parolaları
-değiştirmez. İlk kurulumdan sonra bu değişkenleri kaldırabilirsiniz.
-Tablo mevcut geliştirme ayarı olan `ddl-auto=update` ile oluşur; migration çalışması ayrıdır.
+Varsayılan kullanıcı/parola yoktur. Her başlangıçta kullanıcı tablosu kontrol edilir;
+tablo boşsa bu bilgilerle bir ADMIN oluşturulur. Bilgiler eksik/geçersizse başlangıç
+durur. Herhangi bir kullanıcı varsa yeni admin oluşturulmaz, mevcut parola
+değiştirilmez. İlk kurulumdan sonra bootstrap değişkenleri kaldırılabilir; DB
+sıfırlanırsa yeniden verilmelidir. Boş DB'de tablolar `ddl-auto=update` ile oluşur.
 
 ## Roller
 
@@ -23,16 +24,16 @@ Tablo mevcut geliştirme ayarı olan `ddl-auto=update` ile oluşur; migration ç
 | Katalog okuma | Evet | Evet | Evet |
 | Oluşturma, düzenleme, config/mapping kaydetme ve tamamlama | Hayır | Evet | Evet |
 | Entegrasyon silme | Hayır | Hayır | Evet |
-| Kullanılmayan source/destination/middleware silme | Hayır | Hayır | Evet |
+| Kullanılmayan sistem silme | Hayır | Hayır | Evet |
 | Kullanıcı listeleme ve oluşturma | Hayır | Hayır | Evet |
 | Swagger / OpenAPI | Hayır | Hayır | Evet |
 
 Yeni endpoint'ler açıkça yetkilendirilene kadar kapalıdır.
-Kullanıcılar artık ADMIN davetiyle eklenir. Rol, hesap durumu, oturum iptali ve
+Kullanıcılar ADMIN davetiyle eklenir. Rol, hesap durumu, oturum iptali ve
 e-posta doğrulama akışları için [kullanıcı yönetimi](user-management.md) belgesine bakın.
 Fiziksel kullanıcı silme ve açık kayıt endpoint'i yoktur.
-Source/destination/middleware güncelleme, aktiflik ve silme kuralları için
-[katalog yönetimi](catalog-management.md) belgesine bakın.
+Ortak sistem kataloğunun güncelleme, aktiflik ve silme kuralları için
+[katalog yönetimi](systems-frontend.md) belgesine bakın.
 
 ## Frontend / Postman akışı
 
@@ -62,8 +63,8 @@ büyük/küçük harfe duyarlıdır; e-postalar küçük harfle saklanır.
 
 Oturum çerezi HttpOnly ve SameSite=Lax'tır; hareketsizlik süresi 30 dakikadır.
 Frontend aynı origin üzerinden çalışmalıdır; geliştirmede frontend dev proxy kullanın.
-Eski wildcard CORS izinleri kaldırıldı. HTTPS ortamında `SESSION_COOKIE_SECURE=true`
-tanımlayın. Yerel HTTP geliştirme için varsayılan değer false'tur.
+Backend'de farklı origin'lere izin veren CORS yapılandırması yoktur. HTTPS ortamında
+`SESSION_COOKIE_SECURE=true` tanımlayın. Yerel HTTP geliştirme için varsayılan değer false'tur.
 Oturumlar uygulama belleğindedir; yeniden başlatmada kaybolur.
 Parola, e-posta, rol veya credential izni değiştiğinde ve hesap pasifleştirildiğinde
 oturum sürümü artırılır. Eski oturumlar sonraki istekte veritabanı kontrolüyle reddedilir.
@@ -95,13 +96,13 @@ Eski açık kayıtlar varsa:
 
 1. Veritabanını yedekleyin; uygulamanın diğer instance'larını durdurun.
 2. Kalıcı anahtarı tanımlayın, `CATALOG_CREDENTIALS_MIGRATE=true` ile bir kez başlatın.
-3. Başarılı dönüşümden sonra migration değişkenini kaldırın; anahtarı koruyun.
+3. Başarılı dönüşümden sonra `CATALOG_CREDENTIALS_MIGRATE=false` yapın; anahtarı koruyun.
 
 Dönüşüm transaction içinde yapılır; şifreli kayıtlar tekrar şifrelenmez.
-Açık kayıtlar varken migration kapalıysa, ya da şifreli kayıtlar mevcut anahtarla
+Açık kayıtlar varken dönüşüm kapalıysa, ya da şifreli kayıtlar mevcut anahtarla
 çözülemiyorsa uygulama açılışı durur. Eski yedeklerdeki açık bilgiler bu işlemle
 silinmez; yedeklerin erişimi ayrıca korunmalıdır. Credential dönüşümünün gerçek
-DB testi ile payload saklamanın DB testi ayrı kontrollerdir; aşağıdaki kapsamı okuyun.
+DB testi ile payload saklamanın DB testi ayrı kontrollerdir.
 
 ### Ayrı izinler
 
@@ -136,19 +137,11 @@ config'i listeden çıkarma ayrıca izin gerektirir. Boş credential map reddedi
 temizlemek için `authType=NONE` kullanılır. Yeni auth türü için bilgi verilmelidir.
 Config ID ve oluşturma zamanı güncellemede korunur.
 
-## Kontroller
+## Doğrulama
 
-`SecurityTests` gerçek Spring Security filtreleriyle giriş, çıkış, oturum kimliği
-yenileme, CSRF, rol sınırları, kullanıcı oluşturma ve yanıt gizliliğini doğrular.
-`AdminBootstrapTests` ilk kurulum ve yeniden başlatma davranışını kontrol eder.
-Mevcut `RequestValidationTests` yalnızca DTO/controller kontrolleri için filtreleri
-kapatır; güvenlik ayrı test sınıflarında çalışır. Bunlar gerçek tarayıcı, SMTP ve
-PostgreSQL ile hesap yaşam döngüsünün tamamını kapsayan uçtan uca testler değildir.
-
-`CredentialCryptoTests`, `CredentialMigrationTests` ve `CredentialSecurityTests`
-şifreleme, bozulma/yanlış anahtar, dönüşüm, izin sınırları ve secret'ı config silerek
-değiştirme girişimlerini kontrol eder. Migration JDBC çağrıları mock ile doğrulandı;
-gerçek PostgreSQL transaction/JSONB doğrulaması için çalışan veritabanı gerekir.
+Giriş/CSRF/rol kontrolleri gerçek güvenlik filtreleriyle, credential dönüşümü ise
+mock JDBC ile test edilir. Test grupları ve gerçek DB/SMTP kapsamının sınırları
+[mimari belgesindedir](architecture.md#test-kapsamı-ve-doğrulama-yöntemi).
 
 Referans: [Spring Security form login](https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/form.html)
 ve [CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html).

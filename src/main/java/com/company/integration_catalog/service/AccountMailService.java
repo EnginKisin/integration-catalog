@@ -44,7 +44,6 @@ public class AccountMailService {
 
     @Transactional
     public void requestPasswordReset(String email) {
-        // Enqueue identical work for known/unknown addresses; no user lookup in the public request.
         MailOutbox message = new MailOutbox();
         message.setEncryptedPayload(crypto.encryptMail(Map.of("kind", "PASSWORD_RESET_REQUEST", "email", email), message.getId()));
         message.setNextAttemptAt(clock.instant());

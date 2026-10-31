@@ -19,4 +19,7 @@ import lombok.Builder;
         private String targetFieldPath;
         private Boolean isAiGenerated;
         private Double aiConfidenceScore;
+        private String origin;
+        private String aiJobId;
+        private String aiSuggestionId;
     }

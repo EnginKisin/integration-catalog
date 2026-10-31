@@ -42,6 +42,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/password/change", "/api/v1/auth/email/change").authenticated()
                         .requestMatchers("/api/v1/auth/me").authenticated()
                         .requestMatchers("/api/v1/users", "/api/v1/users/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/integrations/*/mappings/context",
+                                "/api/v1/integrations/*/mappings/ai/capabilities",
+                                "/api/v1/integrations/*/mappings/ai/jobs/*",
+                                "/api/v1/integrations/*/mappings/ai/jobs/*/result")
+                                .hasAnyRole("ADMIN", "EDITOR", "VIEWER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/integrations/*/mappings/ai/jobs",
+                                "/api/v1/integrations/*/mappings/fields/append")
+                                .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.GET, "/api/v1/integrations/*/configs/*/*/credentials")
                                 .access((authentication, context) -> new AuthorizationDecision(
                                         credentialAccess.allowed(authentication.get(), UserPermission.VIEW_CREDENTIALS)))
@@ -49,22 +57,22 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/integrations", "/api/v1/integrations/*",
                                 "/api/v1/integrations/*/mappings/schemas", "/api/v1/integrations/*/mappings/fields",
                                 "/api/v1/integrations/*/mappings/schemas/*/sample",
-                                "/api/v1/sources", "/api/v1/destinations", "/api/v1/middlewares")
+                                "/api/v1/systems")
                                 .hasAnyRole("ADMIN", "EDITOR", "VIEWER")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/sources/*", "/api/v1/destinations/*", "/api/v1/middlewares/*")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/systems/*")
                                 .hasAnyRole("ADMIN", "EDITOR", "VIEWER")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/sources/*", "/api/v1/destinations/*", "/api/v1/middlewares/*")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/systems/*")
                                 .hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/sources/*", "/api/v1/destinations/*", "/api/v1/middlewares/*")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/systems/*")
                                 .hasAnyRole("ADMIN", "EDITOR")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/sources/*/active", "/api/v1/destinations/*/active", "/api/v1/middlewares/*/active")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/systems/*/active")
                                 .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/integrations/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/integrations", "/api/v1/integrations/*/configs",
                                 "/api/v1/integrations/*/review/confirm",
                                 "/api/v1/integrations/*/mappings/schemas/upload",
                                 "/api/v1/integrations/*/mappings/schemas", "/api/v1/integrations/*/mappings/fields",
-                                "/api/v1/sources", "/api/v1/destinations", "/api/v1/middlewares")
+                                "/api/v1/systems")
                                 .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/integrations/*").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/integrations/*/complete").hasAnyRole("ADMIN", "EDITOR")

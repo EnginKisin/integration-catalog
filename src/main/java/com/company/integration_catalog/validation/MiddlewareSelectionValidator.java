@@ -9,17 +9,16 @@ public class MiddlewareSelectionValidator
 
     @Override
     public boolean isValid(IntegrationRequestDTO request, ConstraintValidatorContext context) {
-        // Missing hasMiddleware is reported by its own @NotNull constraint.
         if (request == null || request.getHasMiddleware() == null) {
             return true;
         }
         boolean valid = request.getHasMiddleware()
-                ? request.getMiddlewareId() != null
-                : request.getMiddlewareId() == null;
+                ? request.getMiddlewareSystemId() != null
+                : request.getMiddlewareSystemId() == null;
         if (!valid) {
             context.disableDefaultConstraintViolation();
             context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
-                    .addPropertyNode("middlewareId")
+                    .addPropertyNode("middlewareSystemId")
                     .addConstraintViolation();
         }
         return valid;

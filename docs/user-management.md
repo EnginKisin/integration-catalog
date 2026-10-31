@@ -86,11 +86,12 @@ döner. Health endpoint'leri bu kullanıcı kontrolünden bağımsızdır.
 
 Kullanıcı işlemleri `account_audit` tablosuna kullanıcı/amaç/zaman bilgisiyle yazılır;
 parola veya ham token kaydedilmez. Audit erişim/retention politikası ve dağıtık
-oturum deposu bu değişiklikte kurulmadı.
+oturum deposu ayrıca yapılandırılmalıdır.
 
 ## Token, posta kuyruğu ve SMTP
 
-Token 32 byte güvenli rastgele veriyle üretilir; token tablosunda yalnızca SHA-256
+Token 32 byte güvenli rastgele verinin padding'siz URL-safe Base64 gösterimidir;
+43 karakterdir (`[A-Za-z0-9_-]{43}`). Token tablosunda yalnızca SHA-256
 hash'i bulunur. Amaç, hesap, e-posta, son kullanım zamanı ve oturum sürümüyle
 doğrulanır. Süresi bitmiş, kullanılmış veya eski sürüme ait bağlantı 400 döner.
 
@@ -113,7 +114,8 @@ ve failed sayılarını izleyebilir. Loglar yalnızca posta işinin ID ve deneme
 içerir. SMTP debug ve HTTP gövde/trace loglaması açılmamalıdır; bunlar parola veya
 token içerebilir.
 
-`POST /api/v1/auth/*` istekleri IP başına 60 saniyede 20 istekle sınırlıdır (429).
+Giriş, davet kabulü, parola ve e-posta POST işlemleri IP başına 60 saniyede 20
+istekle sınırlıdır (429).
 Sayaç uygulama belleğindedir; yeniden başlatmada sıfırlanır. İstemcinin gönderdiği
 X-Forwarded-For'a güvenilmez. Çok instance veya reverse proxy dağıtımında gateway
 üzerinde paylaşımlı limit ve güvenilir istemci IP ayarı ayrıca yapılmalıdır.
@@ -132,13 +134,13 @@ SMTP_PORT=1025 kullanın; Docker'daki app için varsayılan SMTP_HOST=mailpit'ti
 Gerçek sunucuda SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_AUTH,
 SMTP_STARTTLS ve MAIL_FROM ayarlarını tanımlayın. STARTTLS sunucusunda örneğin
 SMTP_AUTH=true, SMTP_STARTTLS=true ve uygun port kullanılır. Kimlik bilgilerini Git'e
-koymayın; gerçek gönderim bu çalışma sırasında yapılandırılmadı veya yapılmadı.
+koymayın. SMTP kabulünü ve gerçek teslimi kendi ortamınızda doğrulayın.
 
-ACCOUNT_ACTION_URL gelecekteki frontend doğrulama sayfasının tam adresidir.
+ACCOUNT_ACTION_URL frontend doğrulama sayfasının tam adresidir.
 Localhost dışında HTTPS gereklidir; Host başlığından bağlantı üretilmez. Token URL
 fragment'ında bulunur: `#purpose=INVITATION&token=...`. Frontend token'ı okuyup URL'den
 temizlemeli, saklamamalı ve uygun POST endpoint'ine göndermelidir. Doğrulama/sıfırlama
-frontend sayfaları henüz yapılmadı; backend akışları Postman ile test edilebilir.
+frontend sayfaları bu repoda bulunmaz; backend akışları HTTP istemcisiyle denenebilir.
 Fragment işleme ve endpoint eşlemesi [frontend rehberinde](frontend-integration.md),
 ortam değişkenleri [yapılandırma belgesinde](configuration.md) açıklanır.
 Mailpit mesajları container yeniden oluşturulduğunda korunacak bir volume'a yazılmaz;
@@ -146,14 +148,9 @@ yerel posta kutusunu kalıcı audit veya yedek yerine kullanmayın.
 
 ## Doğrulama sınırı
 
-Servis testleri ve gerçek Spring Security filtreleriyle HTTP testleri; davet,
-tek kullanım, süre, amaç, parola/e-posta değişikliği, oturum iptali, yetki, hız limiti,
-son ADMIN koruması ve posta kuyruğunu doğrular. SMTP testleri sahte sender kullanır.
-Hesap akışlarının gerçek PostgreSQL kilit/eşzamanlılık davranışı ve gerçek SMTP
-teslimi bu testlerle doğrulanmaz. Payload saklama için ayrı PostgreSQL testleri
-bulunması hesap yaşam döngüsünü uçtan uca doğrulamış sayılmaz. Yeni tablo/sütunlar
-mevcut `ddl-auto=update` ayarıyla oluşturulur;
-üretim öncesi sürümlü migration ve gerçek veritabanı testleri gerekir.
+Hesap servisleri ve HTTP güvenlik filtreleri otomatik test edilir; SMTP testleri
+sahte sender kullanır. Gerçek PostgreSQL eşzamanlılığı ve SMTP teslimi için kapsam
+[mimari belgesindedir](architecture.md#test-kapsamı-ve-doğrulama-yöntemi).
 
 Referanslar: [Spring Boot e-posta](https://docs.spring.io/spring-boot/3.5/reference/io/email.html),
 [OWASP parola kurtarma](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html),

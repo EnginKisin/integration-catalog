@@ -4,6 +4,7 @@ import com.company.integration_catalog.model.enums.SchemaType;
 import com.company.integration_catalog.model.enums.PayloadFormat;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import java.util.Map;
@@ -25,24 +26,36 @@ public class MappingSchema extends BaseEntity {
     @JoinColumn(name = "integration_id", nullable = false)
     private Integration integration;
 
-    /**
-     * Şemanın rolü nedir?
-     * Örn: SOURCE_TO_MW_REQUEST, MW_TO_DEST_REQUEST, DEST_TO_MW_RESPONSE, MW_TO_SOURCE_RESPONSE
-     */
     @Enumerated(EnumType.STRING)
     @Column(name = "schema_type", nullable = false)
     private SchemaType schemaType;
 
-    /**
-     * Şemanın tüm alanlarını, tiplerini ve hiyerarşisini tutan dinamik JSON yapısı.
-     * AI bu yapıyı doğrudan okuyarak mantıksal eşleme üretecek.
-     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "schema_definition", columnDefinition = "jsonb", nullable = false)
     private Map<String, Object> schemaDefinition;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> samplePayload;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> targetSchemaDefinition;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> targetSamplePayload;
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "varchar(16) default 'JSON'")
+    @Column(length = 16)
+    private PayloadFormat targetFormat;
+
+    @Column(columnDefinition = "text")
+    private String targetRawContent;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    @ColumnDefault("'JSON'")
     @Builder.Default
     private PayloadFormat format = PayloadFormat.JSON;
 

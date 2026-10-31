@@ -14,6 +14,13 @@ import java.time.LocalDateTime;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(
+            org.springframework.web.bind.MissingRequestHeaderException ex, HttpServletRequest request) {
+        return handlePayload(new PayloadValidationException("MISSING_REQUEST_HEADER",
+                "Required header is missing: " + ex.getHeaderName()), request);
+    }
+
     @ExceptionHandler(PayloadValidationException.class)
     public ResponseEntity<ErrorResponse> handlePayload(PayloadValidationException ex, HttpServletRequest request) {
         return ResponseEntity.status(ex.getStatus()).body(ErrorResponse.builder()
@@ -90,7 +97,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(error);
     }
 
-    // 1. Veritabanında kayıt bulunamadığında (404) fırlayacak hata
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleEntityNotFoundException(
             EntityNotFoundException ex, HttpServletRequest request) {
@@ -149,7 +155,6 @@ public class GlobalExceptionHandler {
     }
 
 
-    // 2. Beklenmeyen tüm diğer sistem hataları (500) için güvenli liman
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(
             Exception ex, HttpServletRequest request) {
@@ -160,7 +165,6 @@ public class GlobalExceptionHandler {
         System.out.println("Message   : " + ex.getMessage());
         System.out.println("=========================================");
 
-        // Hatanın nereden geldiğini görmek için
         ex.printStackTrace();
 
         System.out.println("=========================================");

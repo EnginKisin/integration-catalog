@@ -29,9 +29,7 @@ import com.company.integration_catalog.dto.mapping_schema.MappingSchemaRequestDT
 class IntegrationCompletionTests {
     @Mock private IntegrationRepository repository;
     @Mock private EnvironmentConfigRepository configRepository;
-    @Mock private SourceRepository sourceRepository;
-    @Mock private DestinationRepository destinationRepository;
-    @Mock private MiddlewareRepository middlewareRepository;
+    @Mock private SystemRepository systemRepository;
     @Mock private CredentialCrypto crypto;
     @Mock private CredentialAccess credentialAccess;
     private IntegrationServiceImpl service;
@@ -39,7 +37,7 @@ class IntegrationCompletionTests {
     @BeforeEach
     void setUp() {
         service = new IntegrationServiceImpl(repository, configRepository, new IntegrationMapper(),
-                sourceRepository, destinationRepository, middlewareRepository, new IntegrationCompletionValidator(),
+                systemRepository, new IntegrationCompletionValidator(),
                 crypto, credentialAccess);
     }
 
@@ -133,8 +131,8 @@ class IntegrationCompletionTests {
                 mapping.setSourceSchema(mapping.getTargetSchema());
                 mapping.setTargetSchema(source);
             }
-            case "basic-information" -> integration.setSource(null);
-            case "middleware-selection" -> integration.setMiddleware(null);
+            case "basic-information" -> integration.setSourceSystem(null);
+            case "middleware-selection" -> integration.setMiddlewareSystem(null);
             case "incompatible-schema" -> integration.getMappingSchemas().get(0).setSchemaType(SchemaType.SOURCE_TO_DEST_REQUEST);
             default -> throw new AssertionError(problem);
         }
@@ -210,8 +208,8 @@ class IntegrationCompletionTests {
 
     private Integration ready(boolean middleware, boolean sync) {
         Integration integration = Integration.builder().id(1L).name("Orders").description("Order transfer")
-                .source(Source.builder().id(10L).build()).destination(Destination.builder().id(20L).build())
-                .hasMiddleware(middleware).middleware(middleware ? Middleware.builder().id(30L).build() : null)
+                .sourceSystem(CatalogSystem.builder().id(10L).build()).destinationSystem(CatalogSystem.builder().id(20L).build())
+                .hasMiddleware(middleware).middlewareSystem(middleware ? CatalogSystem.builder().id(30L).build() : null)
                 .isSync(sync).sourcePayloadFormat(PayloadFormat.JSON).destinationPayloadFormat(PayloadFormat.JSON)
                 .status(IntegrationStatus.DRAFT).build();
         integration.getEnvironmentConfigs().add(config(ConfigTarget.DESTINATION));

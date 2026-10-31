@@ -10,7 +10,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface MappingService {
 
-    // 4 büyük payload alanına şema kaydetmek/güncellemek için
     MappingSchemaResponseDTO saveSchema(Long integrationId, MappingSchemaRequestDTO request);
 
     MappingSchemaResponseDTO uploadSchema(Long integrationId, MappingSchemaRequestDTO metadata, MultipartFile file);
@@ -19,12 +18,9 @@ public interface MappingService {
 
     record SampleFile(String fileName, String contentType, byte[] bytes) {}
 
-    // Entegrasyona ait yüklenmiş tüm şemaları listelemek için
     List<MappingSchemaResponseDTO> getSchemasByIntegration(Long integrationId);
 
-    // Kullanıcının çektiği tüm çizgileri (Manuel mapping) topluca kaydetmek için
     void saveFieldMappings(Long integrationId, List<FieldMappingRequestDTO> mappingRequests);
 
-    // Ekran açıldığında mevcut çizgileri frontend'e (React Flow) çizdirmek için
     List<FieldMappingResponseDTO> getFieldMappingsByIntegration(Long integrationId);
 }

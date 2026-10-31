@@ -1,47 +1,58 @@
 package com.company.integration_catalog.repository;
 
 import com.company.integration_catalog.model.entity.Integration;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IntegrationRepository extends JpaRepository<Integration, Long> {
-
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from Integration i where i.id = :id")
-    java.util.Optional<Integration> findByIdForUpdate(@Param("id") Long id);
+    Optional<Integration> findByIdForUpdate(@Param("id") Long id);
 
-    long countBySourceId(Long sourceId);
-    long countByDestinationId(Long destinationId);
-    long countByMiddlewareId(Long middlewareId);
+    @Override
+    @EntityGraph(attributePaths = {"sourceSystem", "destinationSystem", "middlewareSystem", "environmentConfigs"})
+    List<Integration> findAll();
+
+    @Override
+    @EntityGraph(attributePaths = {"sourceSystem", "destinationSystem", "middlewareSystem", "environmentConfigs"})
+    Optional<Integration> findById(Long id);
+
+    @Query("select count(distinct i.id) from Integration i where i.sourceSystem.id = :systemId "
+            + "or i.destinationSystem.id = :systemId or i.middlewareSystem.id = :systemId")
+    long countBySystemId(@Param("systemId") Long systemId);
 
     interface SystemUsage {
         Long getSystemId();
         long getUsageCount();
     }
 
-    @Query("select i.source.id as systemId, count(i) as usageCount from Integration i group by i.source.id")
-    List<SystemUsage> sourceUsageCounts();
+    @Query(value = """
+            SELECT system_id AS "systemId", count(*) AS "usageCount"
+            FROM (
+                SELECT source_system_id AS system_id, id FROM integrations
+                UNION
+                SELECT destination_system_id AS system_id, id FROM integrations
+                UNION
+                SELECT middleware_system_id AS system_id, id FROM integrations
+                WHERE middleware_system_id IS NOT NULL
+            ) usages
+            GROUP BY system_id
+            """, nativeQuery = true)
+    List<SystemUsage> systemUsageCounts();
 
-    @Query("select i.destination.id as systemId, count(i) as usageCount from Integration i group by i.destination.id")
-    List<SystemUsage> destinationUsageCounts();
-
-    @Query("select i.middleware.id as systemId, count(i) as usageCount from Integration i where i.middleware is not null group by i.middleware.id")
-    List<SystemUsage> middlewareUsageCounts();
-
-    // Dashboard'daki arama çubuğu için: İsim, kaynak veya hedef sisteme göre filtreleme
-    @Query("SELECT i FROM Integration i " +
-           "LEFT JOIN i.source s " +
-           "LEFT JOIN i.destination d " +
-           "WHERE LOWER(i.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "LOWER(s.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "LOWER(d.name) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    @EntityGraph(attributePaths = {"sourceSystem", "destinationSystem", "middlewareSystem", "environmentConfigs"})
+    @Query("select distinct i from Integration i left join i.sourceSystem s "
+            + "left join i.destinationSystem d left join i.middlewareSystem m "
+            + "where lower(i.name) like lower(concat('%', :keyword, '%')) "
+            + "or lower(s.name) like lower(concat('%', :keyword, '%')) "
+            + "or lower(d.name) like lower(concat('%', :keyword, '%')) "
+            + "or lower(m.name) like lower(concat('%', :keyword, '%'))")
     List<Integration> searchIntegrations(@Param("keyword") String keyword);
-
-    // Middleware kullanan entegrasyonları listelemek için (Adım 3 optimizasyonları için gerekebilir)
-    List<Integration> findByHasMiddlewareTrue();
 }

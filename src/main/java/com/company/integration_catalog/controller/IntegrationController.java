@@ -30,38 +30,25 @@ public class IntegrationController {
     public record ReviewConfirmationRequest(
             @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.AssertTrue Boolean confirmed) {}
 
-    // 1. Dashboard: Tüm entegrasyonların listelenmesi ve ana arama çubuğu sorgusu
     @GetMapping
     public ResponseEntity<List<IntegrationResponseDTO>> getAllIntegrations(
             @RequestParam(value = "keyword", required = false) String keyword) {
         return ResponseEntity.ok(integrationService.getAllIntegrations(keyword));
     }
 
-    // Entegrasyon Detayını Getir
     @GetMapping("/{id}")
     public ResponseEntity<IntegrationResponseDTO> getIntegrationById(@PathVariable Long id) {
         return ResponseEntity.ok(integrationService.getIntegrationById(id));
     }
 
-    // 2. Create Wizard (Adım 1): Ana entegrasyon bilgilerini kaydetme
     @PostMapping
     public ResponseEntity<IntegrationResponseDTO> createIntegration(@Valid @RequestBody IntegrationRequestDTO request) {
 
-        System.out.println("name = " + request.getName());
-        System.out.println("description = " + request.getDescription());
-        System.out.println("description = " + request.getSourceId());
-        System.out.println("description = " + request.getDestinationId());
-        System.out.println("description = " + request.getMiddlewareId());
-        System.out.println("sourcePayloadFormat = " + request.getSourcePayloadFormat());
-        System.out.println("type = " + request.getIsSync());
-        System.out.println("destinationPayloadFormat = " + request.getDestinationPayloadFormat());
-        System.out.println("hasMiddleware = " + request.getHasMiddleware());
 
         IntegrationResponseDTO created = integrationService.createIntegration(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    // Entegrasyon Güncelleme (Gerekirse Adım 1'e geri dönüp düzenlemek için)
     @PutMapping("/{id}")
     public ResponseEntity<IntegrationResponseDTO> updateIntegration(
             @PathVariable Long id,
@@ -69,7 +56,6 @@ public class IntegrationController {
         return ResponseEntity.ok(integrationService.updateIntegration(id, request));
     }
 
-    // 3. Create Wizard (Adım 2): Ortam konfigürasyonlarını topluca kaydetme
     @PostMapping("/{id}/configs")
     public ResponseEntity<Void> saveEnvironmentConfigs(
             @PathVariable Long id,
@@ -78,14 +64,12 @@ public class IntegrationController {
         return ResponseEntity.ok().build();
     }
 
-    // Entegrasyon Silme
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteIntegration(@PathVariable Long id) {
         integrationService.deleteIntegration(id);
         return ResponseEntity.noContent().build();
     }
 
-    // IntegrationController.java içerisine eklenecek:
     @PatchMapping("/{id}/complete")
     public ResponseEntity<Void> completeIntegration(@PathVariable Long id) {
         integrationService.completeIntegration(id);

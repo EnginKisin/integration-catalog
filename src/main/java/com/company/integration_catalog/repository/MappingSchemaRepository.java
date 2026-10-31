@@ -13,9 +13,7 @@ public interface MappingSchemaRepository extends JpaRepository<MappingSchema, Lo
 
     Optional<MappingSchema> findByIdAndIntegrationId(Long id, Long integrationId);
 
-    // Bir entegrasyona ait tüm şemaları (4 adet payload alanını) getirir
     List<MappingSchema> findByIntegrationId(Long integrationId);
 
-    // Belirli bir entegrasyonun spesifik bir şemasını getirir (Örn: SOURCE_TO_MW_REQUEST)
     Optional<MappingSchema> findByIntegrationIdAndSchemaType(Long integrationId, SchemaType schemaType);
 }

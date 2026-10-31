@@ -29,14 +29,16 @@ import lombok.AllArgsConstructor;
 
         // Frontend selectbox'tan seçilen ID'leri gönderecek:
         @NotNull(message = "Source system ID cannot be null")
-        private Long sourceId;
+        @Positive(message = "Source system ID must be greater than zero")
+        private Long sourceSystemId;
 
         @NotNull(message = "Destination system ID cannot be null")
-        private Long destinationId;
+        @Positive(message = "Destination system ID must be greater than zero")
+        private Long destinationSystemId;
 
         // Eğer hasMiddleware true ise dolu gelecek
-        @Positive(message = "Middleware ID must be greater than zero")
-        private Long middlewareId;
+        @Positive(message = "Middleware system ID must be greater than zero")
+        private Long middlewareSystemId;
 
         @NotNull(message = "Source payload format cannot be null")
         private PayloadFormat sourcePayloadFormat;

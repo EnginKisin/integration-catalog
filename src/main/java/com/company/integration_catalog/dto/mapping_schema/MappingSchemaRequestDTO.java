@@ -22,6 +22,11 @@ import java.util.Map;
         private SchemaType schemaType;
 
         private Map<String, Object> schemaDefinition;
+        private Map<String, Object> samplePayload;
+        private Map<String, Object> targetSchemaDefinition;
+        private Map<String, Object> targetSamplePayload;
+        private PayloadFormat targetFormat;
+        private String targetRawContent;
 
         private PayloadFormat format;
         private String rawContent;

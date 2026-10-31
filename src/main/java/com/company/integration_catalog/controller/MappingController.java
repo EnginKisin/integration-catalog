@@ -26,7 +26,6 @@ public class MappingController {
 
     private final MappingService mappingService;
 
-    // 1. Visual Mapping (Adım 3): 4 büyük payload alanından birine şema yükleme / güncelleme
     @PostMapping("/schemas")
     public ResponseEntity<MappingSchemaResponseDTO> saveSchema(
             @PathVariable Long integrationId,
@@ -34,7 +33,6 @@ public class MappingController {
         return ResponseEntity.ok(mappingService.saveSchema(integrationId, request));
     }
 
-    // Bir entegrasyona ait yüklenmiş tüm şemaları (ağaç yapılarını) frontend için listeleme
     @GetMapping("/schemas")
     public ResponseEntity<List<MappingSchemaResponseDTO>> getSchemas(@PathVariable Long integrationId) {
         return ResponseEntity.ok(mappingService.getSchemasByIntegration(integrationId));
@@ -58,7 +56,6 @@ public class MappingController {
                 .contentLength(sample.bytes().length).body(sample.bytes());
     }
 
-    // 2. Visual Mapping (Adım 3): Çizilen tüm çizgileri (Manuel mapping) topluca kaydetme
     @PostMapping("/fields")
     public ResponseEntity<Void> saveFieldMappings(
             @PathVariable Long integrationId,
@@ -67,7 +64,6 @@ public class MappingController {
         return ResponseEntity.ok().build();
     }
 
-    // React Flow ekranı açıldığında veritabanındaki çizgileri çekip ön yüze çizdirme
     @GetMapping("/fields")
     public ResponseEntity<List<FieldMappingResponseDTO>> getFieldMappings(@PathVariable Long integrationId) {
         return ResponseEntity.ok(mappingService.getFieldMappingsByIntegration(integrationId));

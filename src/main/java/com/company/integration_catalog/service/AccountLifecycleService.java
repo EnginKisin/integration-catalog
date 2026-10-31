@@ -146,7 +146,6 @@ public class AccountLifecycleService {
 
     @Transactional
     public UserAccount changeAccess(Long id, Boolean active, UserRole role) {
-        // Serialize changes affecting administrators, so concurrent requests cannot remove the last one.
         var admins = accounts.lockAdministrators();
         var account = locked(id);
         boolean removesAdmin = account.getRole() == UserRole.ADMIN && account.loginAllowed()
@@ -175,7 +174,6 @@ public class AccountLifecycleService {
         token.setAccount(account); token.setTokenHash(hash(raw)); token.setPurpose(purpose); token.setEmail(email);
         token.setSessionVersion(account.getSessionVersion()); token.setIssuedAt(clock.instant());
         token.setExpiresAt(clock.instant().plus(purpose == AccountTokenPurpose.INVITATION ? Duration.ofHours(24) : Duration.ofMinutes(30)));
-        // A newer link supersedes the previous one, independently of session version changes.
         tokens.findFirstByAccountIdAndPurposeOrderByIssuedAtDesc(account.getId(), purpose)
                 .ifPresent(old -> old.setUsedAt(clock.instant()));
         tokens.save(token);
@@ -184,7 +182,6 @@ public class AccountLifecycleService {
 
     private AccountToken validToken(String raw, AccountTokenPurpose purpose) {
         String hash = hash(raw);
-        // Read only the account ID first: loading the token before locking could cache stale usedAt state.
         Long accountId = tokens.findAccountIdByTokenHash(hash).orElseThrow(this::invalidToken);
         var account = locked(accountId);
         var token = tokens.lockByHash(hash).orElseThrow(this::invalidToken);

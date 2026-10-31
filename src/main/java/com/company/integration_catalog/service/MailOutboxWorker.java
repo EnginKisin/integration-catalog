@@ -42,7 +42,6 @@ public class MailOutboxWorker {
                 row.setSentAt(clock.instant());
                 row.setEncryptedPayload(null);
             } catch (Exception ex) {
-                // SMTP errors can contain message bodies and recipients: log only the outbox ID.
                 log.warn("Account mail delivery failed id={} attempt={}", row.getId(), row.getAttempts());
                 if (row.getAttempts() >= 8) {
                     row.setFailedAt(clock.instant());

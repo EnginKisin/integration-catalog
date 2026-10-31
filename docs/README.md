@@ -1,29 +1,26 @@
 # Backend dokümanları
 
-Bu belgeler repodaki mevcut uygulamanın davranışını açıklar. Swagger DTO ve
-endpoint incelemek için, bu belgeler ise iş kuralları, güvenlik, ekran akışları ve
-işletim için kullanılır. API veya iş kuralı değiştiğinde ilgili belge aynı değişiklikte güncellenmelidir.
+[Proje README'si](../README.md) hızlı kurulum, adresler ve test komutlarının
+başlangıç noktasıdır. Aşağıdaki belgeler konularına göre ayrılır; aynı sözleşmenin
+ayrıntılarını başka dosyada tekrar etmek yerine ilgili belgeye bağlantı verilir.
+Kod veya API değiştiğinde ilgili belge aynı değişiklikte güncellenmelidir.
 
-| Belge | İçerik / hedef okuyucu |
+| Belge | İçerik |
 |---|---|
-| [Proje başlangıcı](../README.md) | Kapsam, hızlı kurulum, adresler ve test komutu |
-| [Frontend entegrasyonu](frontend-integration.md) | Frontend geliştiricisi için ilk okuma; istek yardımcısı ve ekran akışları |
-| [Ayrı frontend projesine devir](frontend-handoff.md) | Yerel proxy, ilk oturum, açık ürün kararları ve kabul kontrolleri |
-| [Entegrasyon iş akışı](integration-workflow.md) | Örnek kayıt, şema matrisi, DRAFT/COMPLETED ve inceleme |
-| [API sözleşmesi](api-reference.md) | Endpoint, HTTP durumu, veri biçimi ve hata sözleşmesi |
-| [Payload içeriği ve örnek dosyalar](payload-content.md) | JSON/XML/IDOC alanları, CSV/Excel örnekleri, upload/download, migration |
-| [Giriş, roller ve credential güvenliği](authentication.md) | Oturum, CSRF, yetkiler, şifreleme ve eski veri dönüşümü |
-| [Kullanıcı yönetimi](user-management.md) | Davet, doğrulama, parola, e-posta ve posta kuyruğu |
-| [Katalog yönetimi](catalog-management.md) | Source/destination/middleware güncelleme, aktiflik ve silme |
-| [Yapılandırma ve işletim](configuration.md) | Ortam değişkenleri, IDE çalıştırma, timeout ve sorun giderme |
-| [Docker](docker.md) | Compose, volume, Mailpit ve container yaşam döngüsü |
-| [Health check](health-checks.md) | Liveness, readiness, erişim ve sağlık sınırları |
-| [Mimari ve doğrulama](architecture.md) | Veri ilişkileri, transaction yaklaşımı ve mevcut sınırlar |
-| [Yayın hazırlığı](release-readiness.md) | Public GitHub paylaşımı, yerel inceleme kapsamı ve üretim öncesi eksikler |
+| [Yapılandırma ve işletim](configuration.md) | Docker, env değişiklikleri, IDE, health, volume ve sorun giderme |
+| [API sözleşmesi](api-reference.md) | Bütün controller endpoint'leri, yanıtlar, enum'lar ve doğrulamalar |
+| [Frontend entegrasyonu](frontend-integration.md) | Ayrı proje/proxy, oturum/CSRF yardımcısı, ekran akışları ve kabul kontrolleri |
+| [Ortak sistem kataloğu](systems-frontend.md) | Sistem CRUD/aktiflik/kullanım, entegrasyon seçimleri, harita ve ortam filtresi |
+| [Entegrasyon iş akışı](integration-workflow.md) | Oluşturma, config, şema matrisi, DRAFT/COMPLETED ve inceleme |
+| [Payload ve örnek dosyalar](payload-content.md) | Formatlar, bağımsız hedef, upload/download, alan yolları ve DB testleri |
+| [AI eşleme](ai-mapping.md) | Ollama/Gemini kurulumu, asenkron öneri API'si ve kullanıcı onayı |
+| [Giriş ve credential güvenliği](authentication.md) | Roller, oturum, secret izinleri, şifreleme ve eski veri dönüşümü |
+| [Kullanıcı yaşam döngüsü](user-management.md) | Davet, reset, e-posta doğrulama, SMTP ve outbox |
+| [Mimari ve doğrulama](architecture.md) | Veri ilişkileri, transaction'lar, test kapsamı ve üretim sınırları |
 
-Frontend çalışmasına önce frontend rehberi, ardından entegrasyon iş akışı ve API
-sözleşmesiyle başlayın. Kurulum için proje başlangıcı → Docker → yapılandırma
-sırasını izleyin. Kullanıcı ekranları için kullanıcı yönetimi belgesini de okuyun.
+Frontend geliştiricisi frontend rehberi → API dizini → ilgili alan sözleşmesi
+sırasını izleyebilir. Kurulum/işletim için yapılandırma belgesi, kapsam ve yayın
+kararları için mimari belgesi kullanılır. Bu repo frontend uygulaması içermez.
 
 ## Kodla karşılaştırma noktaları
 
@@ -32,6 +29,7 @@ sırasını izleyin. Kullanıcı ekranları için kullanıcı yönetimi belgesin
 - Tamamlama: `validation/IntegrationCompletionValidator.java`.
 - İş kuralları: `service/`, `service/impl/`; yetkilendirme: `security/` ve `config/`.
 - Çalışma ayarları: `src/main/resources/application.properties`, `docker-compose.yml`, `.env.example`, `Dockerfile`.
+- AI sözleşmesi: `ai/AiMappingDtos.java`, `ai/AiMappingService.java` ve sağlayıcı adaptörleri.
 
 Örneklerdeki ID'ler temsilidir; kendi API yanıtınızdaki ID'leri kullanın.
 Örnek secret ve parolalar üretim değeri değildir. Frontend önerileri uygulanmış

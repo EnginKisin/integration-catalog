@@ -10,8 +10,9 @@ Credential yazma için ayrıca [secret izinlerini](authentication.md) uygulayın
 
 ## En küçük örnek: doğrudan, asenkron
 
-1. `GET /api/v1/sources?active=true` ve `GET /api/v1/destinations?active=true`
-   ile sistemleri seçin. Gerekirse ilgili koleksiyona POST yaparak oluşturun:
+1. `GET /api/v1/systems?active=true` ile ortak katalogdan kaynak ve hedefi seçin.
+   Ara katmanlı akışta üçüncü seçim de aynı listeden yapılır. Gerekirse
+   `POST /api/v1/systems` ile sistem oluşturun:
 
 ```json
 {"name":"ERP","description":"Sipariş sistemi"}
@@ -24,9 +25,9 @@ Credential yazma için ayrıca [secret izinlerini](authentication.md) uygulayın
 {
   "name":"Sipariş aktarımı",
   "description":"ERP siparişlerinin hedef sisteme aktarım tanımı",
-  "sourceId":1,
-  "destinationId":2,
-  "middlewareId":null,
+  "sourceSystemId":1,
+  "destinationSystemId":2,
+  "middlewareSystemId":null,
   "sourcePayloadFormat":"JSON",
   "destinationPayloadFormat":"JSON",
   "isSync":false,
@@ -59,18 +60,23 @@ gönderirseniz DEV silinir. Aynı ortam/hedef çiftini iki kez göndermeyin.
 ```json
 {
   "schemaType":"SOURCE_TO_DEST_REQUEST",
+  "format":"JSON",
   "schemaDefinition":{
     "type":"object",
     "properties":{
       "orderId":{"type":"string"}
     }
-  }
+  },
+  "samplePayload":{"orderId":"ORD-001"},
+  "targetFormat":"JSON",
+  "targetSamplePayload":{"externalOrderId":"ORD-001"}
 }
 ```
 
-Bu örnek JSON formatı içindir. `schemaDefinition` bir JSON nesnesidir. Backend bunun JSON Schema standardına
-uygunluğunu veya payload alanlarının gerçekten varlığını doğrulamaz. Bu örnek
-gösterim amaçlıdır; alan ağacının frontend gösterim standardı ayrıca belirlenmelidir.
+Bu örnek JSON formatı içindir. `schemaDefinition` bir JSON nesnesidir;
+JSON Schema standardının tamamı doğrulanmaz. Alternatif olarak `samplePayload`
+verilebilir; bu durumda tanım örnekten alınır. Alan yolu kontrolleri ve bağımsız
+hedef sözleşmesi [payload rehberindedir](payload-content.md#eşleme-ve-tamamlama).
 
 XML/IDOC için `format` + `rawContent` gönderilir; alan ağacını backend üretir.
 CSV/Excel için yalnızca örnek içerik/dosya tutulur, alan eşlemesi desteklenmez.
@@ -99,6 +105,10 @@ XML/IDOC ayrıştırılabilir olmalıdır. CSV/Excel için geçerli örnek dosya
 CSV metin olarak da gönderilebilir. Her kaydın formatı akıştaki tarafla eşleşir.
 Doğrudan ve middleware şemaları birbirine karıştırılamaz. Asenkron akışta yanıt
 şemaları zorunlu değildir; aynı topolojiye uygun yanıt şemaları bulunabilir.
+Ara katman ekleme/kaldırma sonrasında güncel akışa uygun ilk başarılı örnek kaydı,
+eski akışın uyumsuz şemalarını ve bunlara bağlı alan eşlemelerini yeni kayıtla
+aynı transaction'da temizler. Başarısız kayıtta eski veriler korunur. Bu davranış
+hem JSON/metin kaydı hem dosya yükleme için geçerlidir.
 
 ## Alan eşlemeleri
 
@@ -112,9 +122,9 @@ Doğrudan akışta request şemasının ID'si 30 ise örnek:
 [
   {
     "sourceSchemaId":30,
-    "sourceFieldPath":"orderId",
+    "sourceFieldPath":"/orderId",
     "targetSchemaId":30,
-    "targetFieldPath":"externalOrderId",
+    "targetFieldPath":"/externalOrderId",
     "isAiGenerated":false,
     "aiConfidenceScore":null
   }
@@ -127,9 +137,12 @@ Doğrudan akışta request şemasının ID'si 30 ise örnek:
 aynı şema türüne bağlanır; request'ten response'a çizgi çizilmez.
 
 Alan yolları boş olamaz; XML/IDOC yollarının alan ağacında bulunması kontrol edilir.
-JSON yol varlığı ve formatlar arası tip uyumu kontrol edilmez. CSV/Excel uçlarına
+Eski tek tanımlı JSON kayıtlarda yol kontrolü sınırlıdır; bağımsız örnekler ve yeni
+AI/append akışında yollar kontrol edilir. Çalışma zamanı tip dönüşümü doğrulanmaz. CSV/Excel uçlarına
 eşleme kaydedilemez. `isAiGenerated` istek alanı zorunludur; mevcut manuel kayıt servisi
-bunu her zaman false, skoru null olarak saklar. AI üretim endpoint'i yoktur.
+yeni manuel bağlantılar için bunu false, skoru null olarak saklar. Değişmeden
+tekrar gönderilen AI bağlantılarının kökeni korunur. İsteğe bağlı
+[AI öneri ve onay akışı](ai-mapping.md) ayrı endpoint'ler kullanır.
 
 ## Tamamlanmış kaydı değiştirme
 
@@ -145,8 +158,10 @@ bütün zorunlu alanları gönderin; `status`, `reviewRequired` ve tarihleri gö
 | Katalog sisteminin adı/açıklaması veya aktifliği değişir | Entegrasyon durumu ve bağlantıları korunur |
 | İnceleme onaylanır | Yalnızca `reviewRequired=false`; otomatik tamamlanmaz |
 
-Teknik değişiklikte config, secret, şema ve mapping verileri korunur. Kullanıcı
-bunları yeni seçime göre gözden geçirir. `POST /api/v1/integrations/{id}/review/confirm`
+Teknik değişikliğin PUT isteği config, secret, şema ve mapping verilerini korur.
+Akış değişmişse uyumsuz şemaların/eşlemelerin temizliği ilk başarılı güncel örnek
+kaydında yapılır. Kullanıcı kalan verileri yeni seçime göre gözden geçirir.
+`POST /api/v1/integrations/{id}/review/confirm`
 gövdesi `{"confirmed":true}` ile onaylar, ardından complete çağırır.
 Onay işaretini backend'in içerik uyumluluğunu bütünüyle doğruladığı şeklinde yorumlamayın.
 
@@ -160,14 +175,14 @@ stateDiagram-v2
 ```
 
 Tamamlamada eksik/tutarsız veri veya inceleme gereksinimi varsa 409 döner.
-`details` listesini ekranda gösterin. İstek kayıtları otomatik silmez veya eksikleri
-kendiliğinden doldurmaz. Eski topolojiye ait şemaları tek tek silen endpoint henüz
-yoktur; topoloji değiştirmek uyumsuz korunmuş şemalar nedeniyle tamamlamayı engelleyebilir.
-Bu durumda kullanıcıya engeli açıkça gösterin; UI otomatik veri temizliği varsaymamalıdır.
+`details` listesini ekranda gösterin. Tamamlama isteği kayıtları otomatik silmez
+veya eksikleri kendiliğinden doldurmaz. Eski topolojinin uyumsuz şemaları ilk
+başarılı güncel örnek kaydında temizlenir; bu kayıt sonrasında schemas ve fields
+listelerini yeniden okuyun. Tekil şema silme endpoint'i yoktur.
 
 ## Silme
 
 ADMIN entegrasyonu DELETE ile kaldırabilir; ilişkili config, şema ve mapping'ler
 aggregate silme ilişkilerine dahildir, ortak katalog sistemleri kalır.
 Kullanılan bir katalog sistemi silinemez; pasifleştirilir. Ayrıntılar:
-[katalog yönetimi](catalog-management.md).
+[katalog yönetimi](systems-frontend.md).

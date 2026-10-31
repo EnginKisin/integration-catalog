@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = MiddlewareSelectionValidator.class)
 public @interface ValidMiddlewareSelection {
-    String message() default "Middleware ID is required when hasMiddleware is true and must be absent otherwise";
+    String message() default "Middleware system ID is required when hasMiddleware is true and must be absent otherwise";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
 }

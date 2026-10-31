@@ -1,12 +1,68 @@
 # Frontend entegrasyon rehberi
 
-Ayrı repo kurulumu, yerel proxy ve henüz kararlaştırılmamış görsel mapping konuları
-için [frontend devir notunu](frontend-handoff.md) da okuyun.
+Bu belge ayrı frontend projesi için bağlantı, oturum, ekran ve hata akışını tanımlar.
+Endpoint ayrıntıları [API dizininde](api-reference.md), entegrasyon yaşam döngüsü
+[iş akışındadır](integration-workflow.md).
+
+İsteğe bağlı “AI ile eşleştir” ekranında JSON, XML ve IDOC arasındaki dokuz çift
+desteklenir. Öneri işi başlatma, durum sorgulama, alan yolları, bağımsız hedef
+örnekleri ve kullanıcı onayıyla ekleme sözleşmesi [AI eşleme rehberindedir](ai-mapping.md).
+AI sağlayıcısı (`ollama`/`gemini`) backend'de seçilir. Frontend aynı endpoint'leri
+kullanır; sağlayıcı/model seçici veya API anahtarı girişi eklemeyin.
+AI önerilerini eski bütün-liste `/mappings/fields` kaydına doğrudan göndermeyin;
+seçilenleri `/mappings/fields/append` ile ekleyin.
 
 API kökü `/api/v1`'dir. Geliştirmede frontend dev server üzerinden `/api` yollarını
 backend'e proxy edin; üretimde aynı origin altında yayınlayın. Backend'de farklı
 origin'lere izin veren CORS yapılandırması yoktur. `credentials: "include"` tek başına
 farklı origin erişimini açmaz. JWT veya localStorage'da giriş token'ı kullanılmaz.
+
+## Yerel bağlantı ve frontend projesi
+
+Frontend ayrı repodaysa bu belgelerin hangi backend commit'ine ait olduğunu takip
+edin. Kopya tutuyorsanız backend değiştiğinde yenileyin; `../README.md`,
+`../scripts/` ve `../.github/` yolları backend repo köküne aittir.
+Backend `.env` dosyası ve DB/SMTP/şifreleme/Gemini anahtarları frontend'e taşınmaz.
+Kullanıcı giriş bilgisini formdan alır; tarayıcı ortam değişkenleri secret içermez.
+AI yanıtındaki sağlayıcı/model alanları bilgilendirme metaverisidir.
+
+Backend varsayılan olarak `http://localhost:8080` üzerinde çalışır. Vite kullanılıyorsa
+mevcut `vite.config.ts` içindeki ayarlara aşağıdaki `server` bölümünü ekleyin:
+
+```typescript
+server: {
+  port: 5173,
+  strictPort: true,
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8080',
+      changeOrigin: true
+    }
+  }
+}
+```
+
+Bu bir config parçasıdır; dosyanın tamamı değildir. `/api` önekini kaldıran rewrite
+eklemeyin. Tarayıcı istekleri `/api/v1/...` biçiminde göreli olmalıdır; backend'in
+8080 adresine doğrudan fetch yapmayın. APP_PORT değiştirilmişse proxy hedefini eşleştirin.
+Üretimde aynı origin altında `/api` backend'e, uygulama yolları frontend'e gitmelidir.
+
+Frontend'de `/account/action` rotasını doğrudan URL açılışında da çalıştırın.
+Backend `ACCOUNT_ACTION_URL` bu rotanın tam adresiyle eşleşmelidir; varsayılanı
+`http://localhost:5173/account/action` adresidir. Değişiklik backend container'ına
+yeniden uygulanmalıdır. Gerçek SMTP kullanmak bu frontend sayfasını oluşturmaz.
+
+### İlk oturum ve Swagger
+
+Başlangıçta `/auth/me` isteğinin 401 dönmesi normaldir; giriş ekranını gösterin.
+İlk admin bootstrap ile oluşturulur; `.env` değişikliği mevcut parolayı değiştirmez.
+
+Swagger ve `/v3/api-docs` ADMIN oturumu gerektirir. `localhost:5173` üzerinden
+giriş yapmak, tarayıcıda aynı hostname kullanıldığında `localhost:8080` üzerindeki
+Swagger için de oturum çerezinin kullanılmasına olanak verir; çerezler portla
+ayrılmaz. `localhost` ile `127.0.0.1` adreslerini karıştırmayın. Proxy üzerinden
+Swagger kullanılacaksa `/swagger-ui` ve `/v3/api-docs` yollarını da ayrıca yönlendirin.
+Swagger Authorize düğmesi login akışının yerine geçmez; yazma denemeleri CSRF ister.
 
 ## Oturum ve CSRF
 
@@ -75,7 +131,7 @@ export async function logout(): Promise<void> {
 }
 
 // JSON isteği örneği:
-// await api('/sources', {
+// await api('/systems', {
 //   method: 'POST', headers: { 'Content-Type': 'application/json' },
 //   body: JSON.stringify({ name: 'ERP', description: 'Sipariş sistemi' })
 // });
@@ -111,9 +167,9 @@ ayrıca yazmıyor diye ADMIN düğmelerini gizlemeyin. Diğer kullanıcılar iç
 | Ekran | İstek / davranış |
 |---|---|
 | Entegrasyon listesi | `GET /integrations?keyword=...`; dizi döner, sayfalama yok |
-| Katalog yönetimi | `/sources`, `/destinations`, `/middlewares`; `active`, `usageCount` göster |
+| Katalog yönetimi | `/systems`; `active`, `usageCount` göster |
 | Oluşturma / temel bilgi | Aktif sistem listeleri; POST oluşturma, PUT tam güncelleme |
-| Entegrasyon detayı | `GET /integrations/{id}`; sistem adları için katalog ID'lerini eşleştir |
+| Entegrasyon detayı | `GET /integrations/{id}`; sistem ID/adları ve environmentTypes doğrudan yanıtta |
 | Ortam ayarları | Detaydaki `environmentConfigs`; POST ile tüm config listesi |
 | Şema / mapping | Ayrı GET schemas ve GET fields; POST ile şema upsert / tüm çizgileri kaydet |
 | Payload / dosya örneği | XML/IDOC metin veya upload + alan ağacı; CSV/Excel yalnızca örnek dosya; [sözleşme](payload-content.md) |
@@ -126,12 +182,16 @@ Detay için önce entegrasyon GET yapın. Olmayan entegrasyonun GET schemas iste
 entegrasyonun varlığına karar vermeyin.
 PUT gövdesine yalnızca request alanlarını koyun. Kaydetme sonrası detay ve ilgili
 alt listeleri yeniden okuyun; bazı başarılı kayıtlar boş gövde döner.
+Ara katman ekleme/kaldırma sonrasında güncel akışa uygun ilk başarılı örnek kaydı,
+eski akışın uyumsuz şemalarını ve bağlı alan eşlemelerini aynı transaction'da
+temizler. Metin veya dosya kaydı sonrasında schemas ve fields listelerini yeniden
+okuyun. Başarısız kayıt eski örnekleri ve eşlemeleri korur.
 Entegrasyon tarihleri offset içermeyen sunucu yerel `LocalDateTime` değerleridir;
 `updatedAt` null olabilir. Bunlara istemcide kendiliğinden `Z` eklemeyin.
 
 Pasif mevcut seçimi düzenleme ekranında koruyun; aktif listede yok diye null
 göndermeyin. Silme için usageCount yalnızca UI yardımıdır; kararın son kontrolü
-backend'dedir. [İş akışı](integration-workflow.md) ve [katalog kuralları](catalog-management.md)
+backend'dedir. [İş akışı](integration-workflow.md) ve [sistem kuralları](systems-frontend.md)
 ekranların temel sözleşmesidir.
 
 Dosya yüklerken `FormData` içinde `metadata` (`application/json` Blob) ve `file`
@@ -140,6 +200,24 @@ gönderin; multipart `Content-Type` başlığını tarayıcı oluştursun. Yukar
 çereziyle ayrı `fetch` ve `response.blob()` kullanın. GET indirme CSRF istemez.
 CSV/Excel kayıtlarında `mappingSupported=false` olduğundan eşleme araçları
 gösterilmez; bir eşleme çiftinin iki ucu da bu desteğe sahip olmalıdır.
+
+Ortak sistem seçimi, haritada düğüm tekilleştirme ve ortam filtresi için
+[frontend sistem sözleşmesini](systems-frontend.md) kullanın.
+
+## Alan eşleme ekranı
+
+Doğrudan mapping iki ucu aynı şema ID'sine bağlar; kaynak tarafında
+`format/schemaDefinition/samplePayload/rawContent`, bağımsız hedef tarafında
+`targetFormat/targetSchemaDefinition/targetSamplePayload/targetRawContent` kullanılır.
+Ara katmanlı akışta hedef ayrı şema kaydıdır. Desteklenen çiftler JSON/XML/IDOC
+arasında bağımsız seçilir; alan yollarını [AI sözleşmesine](ai-mapping.md) göre üretin.
+
+XML/IDOC alan yolu varlığı kontrol edilir. JSON'da kaynak örneği veya bağımsız hedef
+tanımı/örneği varsa tam liste kaydı da yol varlığını kontrol eder; kaynak örneği
+bulunmayan JSON taraflarında bu eski endpoint'in kontrolü sınırlıdır. AI job/append akışı
+normalize alan yollarını doğrular; model önerilerinde tip/dizi uyumu ayrıca
+denetlenir. Manuel bağlantılar için otomatik tip dönüşümü veya anlamsal doğruluk
+garantisi verilmez.
 
 ## Erişim bilgileri ekranı
 
@@ -191,12 +269,41 @@ Hesap politikaları ve tam endpoint listesi [kullanıcı yönetimindedir](user-m
 | 403 | Yetki veya CSRF sorunu olabilir; oturumu/CSRF'yi kontrol et, yazmayı otomatik tekrarlama |
 | 404 | Kayıt yok; listeyi yenile |
 | 409 | İş kuralı veya tamamlama engeli; varsa `details` listesini göster |
+| 410 | AI sonucu süresi dolmuş; kullanıcı isterse yeni öneri işi oluştur |
 | 413 | İçerik/dosya boyut sınırı; boyutu azaltmasını iste, formu koru |
+| 422 | AI girdi/şema/alan doğrulaması; `code` değerine göre kullanıcı girdisini düzelt |
 | 429 | Hız sınırı; varsa `Retry-After` kadar bekle, tekrar tekrar gönderme |
 | 500 / 503 | İşlemin sonucunu kontrol et; güvenli genel hata göster |
 
 Süresi biten oturumda yazma isteği CSRF nedeniyle 403 dönebilir; her 403'ü rol
 eksikliği olarak göstermeyin. Hata gövdelerinin tüm alanları her yanıtta bulunmaz.
-Kullanıcı mesajlarını metin olarak render edin. Eşzamanlı kullanıcı düzenlemeleri
-için API'de ETag/If-Match veya istemciden beklenen sürüm alanı yoktur; backend
-entity sürümlemesini tarayıcı için çakışma garantisi saymayın.
+Kullanıcı mesajlarını metin olarak render edin. Entegrasyon PUT ve bütün listeyi
+değiştiren eski config/mapping kayıtları
+ETag/If-Match veya beklenen sürüm almaz; entity sürümlemesi istemcideki eski
+formu korumaya yetmez. AI context/job/append akışı ise `contextRevision` alır;
+eski bağlamla kaydı 409 ile reddeder.
+
+## Frontend kabul kontrolleri
+
+- Giriş, yanlış parola, sayfa yenilemede oturum kontrolü ve çıkış çalışır.
+- Oturum bittiğinde 401/CSRF kaynaklı 403 ele alınır; yazmalar otomatik tekrarlanmaz.
+- VIEWER, EDITOR ve ADMIN ekran eylemleri ile credential izinleri ayrı doğrulanır.
+- Katalog oluşturma/güncelleme, pasif mevcut seçimi koruma ve kullanılan kaydın
+  silinememesi ele alınır.
+- Entegrasyon oluşturma → config → şema → isteğe bağlı mapping → tamamlama çalışır;
+  409 `details` listesi gösterilir. Dört akışın zorunlu şema matrisi kontrol edilir.
+- Config/field kaydının tüm listeyi değiştirdiği dikkate alınır; tek satır kaydetme
+  diğer satırları yanlışlıkla silmez. Maskelenmiş secret gövdeye gönderilmez.
+- XML/IDOC alan ağacı ve yol hataları, CSV/Excel'de eşleme kapatma, multipart
+  yükleme, dosya indirme ve 413 boyut hataları uygulanır.
+- AI önerilerinde manuel bağlantılar korunur; öneri düzenleme/silme/onay, durum
+  sorgulama, eski bağlam ve sağlayıcı hatasında manuel kullanım ele alınır.
+- Teknik değişiklik sonrası inceleme ve yeniden tamamlama akışı uygulanır;
+  güncel akışa uygun ilk başarılı örnek kaydı eski topolojinin uyumsuz şemalarını
+  ve bağlı eşlemeleri temizlediği için schemas ve fields listeleri yeniden okunur.
+- Davet, parola sıfırlama ve e-posta onayı bağlantıları doğrudan açılır;
+  fragment temizlenir, CSRF'li POST yapılır, süre/kullanım hataları gösterilir.
+- 200 boş, 201 JSON, 202 boş/JSON ve 204 boş yanıtlar doğru işlenir.
+
+Bu liste frontend kabulü için kullanılmalıdır. Backend testlerinin kapsamı
+[mimari belgesindedir](architecture.md#test-kapsamı-ve-doğrulama-yöntemi).

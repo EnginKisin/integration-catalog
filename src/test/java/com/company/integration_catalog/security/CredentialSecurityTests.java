@@ -38,9 +38,7 @@ class CredentialSecurityTests {
     @MockitoBean private UserAccountRepository users;
     @MockitoBean private EnvironmentConfigRepository configs;
     @MockitoBean private IntegrationRepository integrations;
-    @MockitoBean private SourceRepository sources;
-    @MockitoBean private DestinationRepository destinations;
-    @MockitoBean private MiddlewareRepository middlewares;
+    @MockitoBean private SystemRepository systems;
     @MockitoBean private AccountLifecycleService lifecycle;
     @MockitoBean private AccountAuditService audit;
 

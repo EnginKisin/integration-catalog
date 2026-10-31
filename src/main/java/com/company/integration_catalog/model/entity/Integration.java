@@ -35,23 +35,20 @@ public class Integration extends BaseEntity {
     @Column(name = "description", nullable = false, length = 500)
     private String description;
 
-    // Eski String sourceSystem yerine:
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "source_id", nullable = false)
-    private Source source;
+    @JoinColumn(name = "source_system_id", nullable = false)
+    private CatalogSystem sourceSystem;
 
-    // Eski String destinationSystem yerine:
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "destination_id", nullable = false)
-    private Destination destination;
+    @JoinColumn(name = "destination_system_id", nullable = false)
+    private CatalogSystem destinationSystem;
 
     @Column(name = "has_middleware", nullable = false)
     private Boolean hasMiddleware = false;
 
-    // Eğer hasMiddleware true ise seçilecek Middleware objesi:
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "middleware_id")
-    private Middleware middleware;
+    @JoinColumn(name = "middleware_system_id")
+    private CatalogSystem middlewareSystem;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "source_payload_format", nullable = false)

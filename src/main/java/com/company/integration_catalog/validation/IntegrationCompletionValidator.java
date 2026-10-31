@@ -18,13 +18,13 @@ public class IntegrationCompletionValidator {
             errors.add("Review the preserved environment settings, schemas and mappings, then confirm the review before completing");
         }
         if (blank(integration.getName()) || integration.getDescription() == null
-                || integration.getSource() == null || integration.getDestination() == null
+                || integration.getSourceSystem() == null || integration.getDestinationSystem() == null
                 || integration.getSourcePayloadFormat() == null || integration.getDestinationPayloadFormat() == null
                 || integration.getHasMiddleware() == null || integration.getIsSync() == null) {
             errors.add("Basic integration information is incomplete");
         }
         boolean middleware = Boolean.TRUE.equals(integration.getHasMiddleware());
-        if (middleware != (integration.getMiddleware() != null)) {
+        if (middleware != (integration.getMiddlewareSystem() != null)) {
             errors.add("Middleware selection is inconsistent");
         }
         validateConfigs(integration.getEnvironmentConfigs(), middleware, errors);
@@ -46,6 +46,7 @@ public class IntegrationCompletionValidator {
             try {
                 PayloadSchemas.validateFlow(integration, schema.getSchemaType(), PayloadSchemas.format(schema));
                 PayloadSchemas.validateStored(schema);
+                PayloadSchemas.validateTarget(integration, schema);
             } catch (PayloadValidationException ex) {
                 errors.add(ex.getMessage() + ": " + schema.getSchemaType());
             }
@@ -66,7 +67,8 @@ public class IntegrationCompletionValidator {
             } else {
                 try {
                     PayloadSchemas.validateMappingPath(source, mapping.getSourceFieldPath());
-                    PayloadSchemas.validateMappingPath(target, mapping.getTargetFieldPath());
+                    PayloadSchemas.validateMappingPath(target, mapping.getTargetFieldPath(),
+                            !middleware && Objects.equals(source.getId(), target.getId()));
                 } catch (PayloadValidationException ex) {
                     errors.add(ex.getMessage() + ": " + mapping.getId());
                 }

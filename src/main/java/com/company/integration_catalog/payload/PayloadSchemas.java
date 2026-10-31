@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.*;
 import java.util.*;
 
-/** Shared content rules for writes and completion. Original text/file bytes are never reformatted. */
 public final class PayloadSchemas {
     public static final int MAX_TEXT_BYTES = 1024 * 1024;
     public static final int MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -31,6 +30,24 @@ public final class PayloadSchemas {
 
     public static PayloadFormat format(MappingSchema schema) {
         return schema.getFormat() == null ? PayloadFormat.JSON : schema.getFormat();
+    }
+
+    public static boolean hasIndependentTarget(MappingSchema schema) {
+        return schema.getTargetFormat() != null || schema.getTargetSchemaDefinition() != null
+                || schema.getTargetSamplePayload() != null || schema.getTargetRawContent() != null;
+    }
+
+    public static PayloadFormat sideFormat(MappingSchema schema, boolean targetSide) {
+        if (!targetSide || !hasIndependentTarget(schema)) return format(schema);
+        return schema.getTargetFormat() == null ? PayloadFormat.JSON : schema.getTargetFormat();
+    }
+
+    public static PayloadFormat expectedTargetFormat(Integration integration, SchemaType type) {
+        return switch (type) {
+            case SOURCE_TO_DEST_REQUEST -> integration.getDestinationPayloadFormat();
+            case DEST_TO_SOURCE_RESPONSE -> integration.getSourcePayloadFormat();
+            default -> throw invalid("INVALID_SCHEMA_TYPE", "Middleware flows use a separate target schema");
+        };
     }
 
     public static PayloadFormat expectedFormat(Integration integration, SchemaType type) {
@@ -43,8 +60,7 @@ public final class PayloadSchemas {
 
     public static void validateFlow(Integration integration, SchemaType type, PayloadFormat format) {
         boolean middleware = Boolean.TRUE.equals(integration.getHasMiddleware());
-        boolean directType = type == SchemaType.SOURCE_TO_DEST_REQUEST || type == SchemaType.DEST_TO_SOURCE_RESPONSE;
-        if (type == null || middleware == directType) {
+        if (type == null || !type.isCompatibleWithFlow(middleware)) {
             throw invalid("INVALID_SCHEMA_TYPE", "Schema type is incompatible with the integration flow");
         }
         PayloadFormat expected = expectedFormat(integration, type);
@@ -53,7 +69,6 @@ public final class PayloadSchemas {
         }
     }
 
-    /** Returns a detached, fully validated replacement, before any persistent state is changed. */
     public static MappingSchema prepare(Integration integration, MappingSchemaRequestDTO request, MultipartFile upload) {
         PayloadFormat format = request.getFormat();
         if (format == null) {
@@ -61,6 +76,8 @@ public final class PayloadSchemas {
             format = PayloadFormat.JSON; // Existing JSON clients remain compatible.
         }
         validateFlow(integration, request.getSchemaType(), format);
+        if (request.getSamplePayload() != null && format != PayloadFormat.JSON)
+            throw invalid("INVALID_CONTENT", "samplePayload is only supported for a JSON source");
         if (request.getCsvOptions() != null && format != PayloadFormat.CSV) {
             throw invalid("INVALID_CONTENT", "CSV options are only supported for CSV");
         }
@@ -91,6 +108,7 @@ public final class PayloadSchemas {
             case JSON -> {
                 if (upload == null && text != null) throw invalid("INVALID_CONTENT", "Use schemaDefinition for JSON");
                 Map<String, Object> definition = request.getSchemaDefinition();
+                if (definition == null && upload == null) definition = request.getSamplePayload();
                 if (upload != null) {
                     try {
                         definition = JSON.readValue(stripBom(text), new TypeReference<Map<String, Object>>() {});
@@ -106,6 +124,14 @@ public final class PayloadSchemas {
                     throw invalid("INVALID_JSON", "Could not read JSON definition");
                 }
                 result.setSchemaDefinition(definition);
+                result.setSamplePayload(request.getSamplePayload());
+                for (Map<String, Object> extra : java.util.Arrays.asList(request.getSamplePayload())) {
+                    if (extra != null) {
+                        try { checkSize(JSON.writeValueAsBytes(extra).length, MAX_TEXT_BYTES); }
+                        catch (IOException ex) { throw invalid("INVALID_JSON", "Could not read JSON example"); }
+                    }
+                }
+                if (request.getSamplePayload() != null) JsonMappingFields.fields(result, false, 1000);
                 result.setContentType("application/json");
             }
             case XML, IDOC -> {
@@ -136,8 +162,64 @@ public final class PayloadSchemas {
                         ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/vnd.ms-excel");
             }
         }
+        prepareTarget(integration, request, result);
         result.setSampleFile(bytes);
         return result;
+    }
+
+    private static void prepareTarget(Integration integration, MappingSchemaRequestDTO request, MappingSchema result) {
+        boolean supplied = request.getTargetFormat() != null || request.getTargetRawContent() != null
+                || request.getTargetSchemaDefinition() != null || request.getTargetSamplePayload() != null;
+        if (!supplied) return;
+        if (Boolean.TRUE.equals(integration.getHasMiddleware()))
+            throw invalid("INVALID_CONTENT", "Middleware flows use a separate target schema");
+        PayloadFormat expected = expectedTargetFormat(integration, request.getSchemaType());
+        PayloadFormat target = request.getTargetFormat();
+        if (target == null) target = request.getTargetRawContent() != null ? expected : PayloadFormat.JSON;
+        if (target == null || target != expected)
+            throw invalid("FORMAT_MISMATCH", "Expected " + expected + " for the independent target");
+        if (!target.supportsFieldMapping())
+            throw invalid("MAPPING_NOT_SUPPORTED", "Independent targets support JSON, XML and IDOC");
+        result.setTargetFormat(target);
+        if (target == PayloadFormat.JSON) {
+            if (request.getTargetRawContent() != null)
+                throw invalid("INVALID_CONTENT", "Use targetSchemaDefinition or targetSamplePayload for JSON");
+            result.setTargetSchemaDefinition(request.getTargetSchemaDefinition());
+            result.setTargetSamplePayload(request.getTargetSamplePayload());
+            for (var extra : java.util.Arrays.asList(request.getTargetSchemaDefinition(), request.getTargetSamplePayload())) {
+                if (extra != null) {
+                    try { checkSize(JSON.writeValueAsBytes(extra).length, MAX_TEXT_BYTES); }
+                    catch (IOException ex) { throw invalid("INVALID_JSON", "Could not read target JSON"); }
+                }
+            }
+            JsonMappingFields.fields(result, true, 1000);
+        } else {
+            if (request.getTargetSchemaDefinition() != null || request.getTargetSamplePayload() != null)
+                throw invalid("INVALID_CONTENT", "XML/IDOC target definitions are generated from targetRawContent");
+            requireText(request.getTargetRawContent());
+            result.setTargetRawContent(request.getTargetRawContent());
+            result.setTargetSchemaDefinition(xmlDefinition(request.getTargetRawContent(), target == PayloadFormat.IDOC));
+        }
+    }
+
+    public static void validateTarget(Integration integration, MappingSchema schema) {
+        if (Boolean.TRUE.equals(integration.getHasMiddleware())) {
+            if (hasIndependentTarget(schema)) throw invalid("INVALID_CONTENT", "Middleware flow cannot contain an independent target");
+            return;
+        }
+        PayloadFormat expected = expectedTargetFormat(integration, schema.getSchemaType());
+        if (!hasIndependentTarget(schema)) {
+            if (expected != format(schema)) throw invalid("SAMPLE_REQUIRED", "Mixed-format direct flows require an independent target");
+            return;
+        }
+        if (sideFormat(schema, true) != expected)
+            throw invalid("FORMAT_MISMATCH", "Independent target format does not match the integration flow");
+        if (expected == PayloadFormat.JSON) JsonMappingFields.fields(schema, true, 1000);
+        else if (expected == PayloadFormat.XML || expected == PayloadFormat.IDOC) {
+            requireText(schema.getTargetRawContent());
+            if (!xmlDefinition(schema.getTargetRawContent(), expected == PayloadFormat.IDOC).equals(schema.getTargetSchemaDefinition()))
+                throw invalid("INVALID_SCHEMA", "Parsed target XML fields do not match content");
+        } else throw invalid("MAPPING_NOT_SUPPORTED", "Independent target format does not support field mapping");
     }
 
     public static void validateStored(MappingSchema schema) {
@@ -167,12 +249,27 @@ public final class PayloadSchemas {
     }
 
     public static void validateMappingPath(MappingSchema schema, String path) {
-        if (!format(schema).supportsFieldMapping()) {
+        validateMappingPath(schema, path, false);
+    }
+
+    public static void validateMappingPath(MappingSchema schema, String path, boolean targetSide) {
+        boolean independent = targetSide && hasIndependentTarget(schema);
+        PayloadFormat effective = sideFormat(schema, independent);
+        if (!effective.supportsFieldMapping()) {
             throw invalid("MAPPING_NOT_SUPPORTED", "CSV and Excel samples do not support field mapping");
         }
-        if (format(schema) == PayloadFormat.XML || format(schema) == PayloadFormat.IDOC) {
-            if (schema.getSchemaDefinition() == null || !containsPath(schema.getSchemaDefinition().get("fields"), path)) {
+        if (effective == PayloadFormat.XML || effective == PayloadFormat.IDOC) {
+            Map<String, Object> definition = independent ? schema.getTargetSchemaDefinition() : schema.getSchemaDefinition();
+            if (definition == null || !containsPath(definition.get("fields"), path)) {
                 throw invalid("FIELD_PATH_NOT_FOUND", "Field path does not exist in the content: " + path);
+            }
+        }
+        if (effective == PayloadFormat.JSON && (independent
+                ? schema.getTargetSamplePayload() != null || schema.getTargetSchemaDefinition() != null
+                : schema.getSamplePayload() != null)) {
+            if (JsonMappingFields.fields(schema, independent, 1000).stream()
+                    .noneMatch(field -> field.path().equals(JsonMappingFields.canonical(path)))) {
+                throw invalid("FIELD_PATH_NOT_FOUND", "Field path does not exist in the JSON side: " + path);
             }
         }
     }
@@ -187,6 +284,15 @@ public final class PayloadSchemas {
     }
 
     public static Map<String, Object> xmlDefinition(String text, boolean idoc) {
+        return parseXml(text, idoc, false);
+    }
+
+    public static Map<String, Object> xmlMappingDefinition(String text, boolean idoc) {
+        requireText(text);
+        return parseXml(text, idoc, true);
+    }
+
+    private static Map<String, Object> parseXml(String text, boolean idoc, boolean withValues) {
         XMLInputFactory factory = XMLInputFactory.newFactory();
         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
@@ -238,10 +344,16 @@ public final class PayloadSchemas {
                             nodes.put(attrPath, attr);
                             children(nodes.get(path)).add(attr);
                         }
+                        if (withValues) sampleValue(nodes.get(attrPath), reader.getAttributeValue(i));
                     }
                     stack.push(new Frame(path));
+                } else if (withValues && (event == XMLStreamConstants.CHARACTERS || event == XMLStreamConstants.CDATA)
+                        && !stack.isEmpty() && stack.peek().text.length() < 256) {
+                    String value = reader.getText();
+                    stack.peek().text.append(value, 0, Math.min(value.length(), 256 - stack.peek().text.length()));
                 } else if (event == XMLStreamConstants.END_ELEMENT) {
-                    stack.pop();
+                    Frame frame = stack.pop();
+                    if (withValues) sampleValue(nodes.get(frame.path), frame.text.toString());
                 }
             }
             if (roots.isEmpty()) throw invalid("INVALID_XML", "An XML root element is required");
@@ -254,6 +366,15 @@ public final class PayloadSchemas {
         } finally {
             if (reader != null) try { reader.close(); } catch (XMLStreamException ignored) { }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void sampleValue(Map<String, Object> node, String value) {
+        value = value.trim();
+        if (value.isEmpty()) return;
+        value = value.substring(0, Math.min(value.length(), 128));
+        List<String> samples = (List<String>) node.computeIfAbsent("sampleValues", key -> new ArrayList<String>());
+        if (samples.size() < 3 && !samples.contains(value)) samples.add(value);
     }
 
     private static Map<String, Object> node(String name, String path, String kind) {
@@ -279,6 +400,7 @@ public final class PayloadSchemas {
     private static class Frame {
         final String path;
         final Set<String> seen = new HashSet<>();
+        final StringBuilder text = new StringBuilder();
         Frame(String path) { this.path = path; }
     }
 

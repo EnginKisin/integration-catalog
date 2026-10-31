@@ -20,29 +20,28 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 
-/** Opt in against a disposable database only; see docs/payload-content.md. */
 @EnabledIfSystemProperty(named = "catalog.payload.postgres-test", matches = "true")
 @SpringBootTest(properties = {
         "spring.datasource.url=${catalog.payload.test-db-url:jdbc:postgresql://localhost:5432/integration_payload_test_20261025}",
         "spring.datasource.username=catalog_payload_test", "spring.datasource.password=payload-test-only-password",
         "catalog.credentials.key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "catalog.bootstrap.username=payload-test-admin", "catalog.bootstrap.password=payload-test-admin-password",
-        "spring.jpa.show-sql=false"
+        "spring.jpa.show-sql=false",
+        "spring.jpa.properties.hibernate.hbm2ddl.halt_on_error=true"
 })
 @Transactional
 class PayloadPostgresTests {
     @Autowired EntityManager em;
-    @Autowired SourceRepository sources;
-    @Autowired DestinationRepository destinations;
+    @Autowired SystemRepository systems;
     @Autowired IntegrationRepository integrations;
     @Autowired MappingService mappings;
 
     @ParameterizedTest @EnumSource(PayloadFormat.class)
     void persistsAndReadsContentAndBinarySamplesAcrossDatabaseReload(PayloadFormat format) throws Exception {
-        Source source = sources.save(Source.builder().name("Payload source").description("").build());
-        Destination destination = destinations.save(Destination.builder().name("Payload destination").description("").build());
+        CatalogSystem source = systems.save(CatalogSystem.builder().name("Payload source").description("").build());
+        CatalogSystem destination = systems.save(CatalogSystem.builder().name("Payload destination").description("").build());
         Integration integration = integrations.save(Integration.builder().name("Payload roundtrip").description("")
-                .source(source).destination(destination).hasMiddleware(false).isSync(false)
+                .sourceSystem(source).destinationSystem(destination).hasMiddleware(false).isSync(false)
                 .sourcePayloadFormat(format).destinationPayloadFormat(format).status(IntegrationStatus.DRAFT).build());
         Long integrationId = integration.getId();
         var request = MappingSchemaRequestDTO.builder().schemaType(SchemaType.SOURCE_TO_DEST_REQUEST).format(format).build();

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.Objects;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,28 +52,54 @@ public class MappingServiceImpl implements MappingService {
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
 
         MappingSchema replacement = PayloadSchemas.prepare(integration, request, file);
+        boolean middleware = Boolean.TRUE.equals(integration.getHasMiddleware());
+        Set<Long> obsoleteSchemaIds = integration.getMappingSchemas().stream()
+                .filter(existing -> !existing.getSchemaType().isCompatibleWithFlow(middleware))
+                .map(MappingSchema::getId)
+                .collect(Collectors.toSet());
         MappingSchema schema = schemaRepository.findByIntegrationIdAndSchemaType(integrationId, request.getSchemaType())
                 .orElse(null);
         if (schema != null) {
-            // Validate every affected mapping before changing managed state; never silently discard links.
+            if (!middleware && !PayloadSchemas.hasIndependentTarget(replacement) && PayloadSchemas.hasIndependentTarget(schema)
+                    && PayloadSchemas.sideFormat(schema, true) == PayloadSchemas.expectedTargetFormat(integration, request.getSchemaType())) {
+                replacement.setTargetSchemaDefinition(schema.getTargetSchemaDefinition());
+                replacement.setTargetSamplePayload(schema.getTargetSamplePayload());
+                replacement.setTargetFormat(schema.getTargetFormat());
+                replacement.setTargetRawContent(schema.getTargetRawContent());
+            }
+            if (request.getSamplePayload() == null && Objects.equals(schema.getSchemaDefinition(), replacement.getSchemaDefinition())) {
+                replacement.setSamplePayload(schema.getSamplePayload());
+            }
             boolean hasMappings = false;
-            for (FieldMapping mapping : fieldMappingRepository.findByIntegrationId(integrationId)) {
+            for (FieldMapping mapping : integration.getFieldMappings()) {
+                if (referencesSchema(mapping, obsoleteSchemaIds)) continue;
                 boolean source = Objects.equals(mapping.getSourceSchema().getId(), schema.getId());
                 boolean target = Objects.equals(mapping.getTargetSchema().getId(), schema.getId());
                 if (!source && !target) continue;
                 hasMappings = true;
                 try {
                     if (source) PayloadSchemas.validateMappingPath(replacement, mapping.getSourceFieldPath());
-                    if (target) PayloadSchemas.validateMappingPath(replacement, mapping.getTargetFieldPath());
+                    if (target) PayloadSchemas.validateMappingPath(replacement, mapping.getTargetFieldPath(),
+                            !middleware && source);
                 } catch (PayloadValidationException ex) {
                     throw new PayloadValidationException(409, "SCHEMA_MAPPING_CONFLICT",
                             "Content change invalidates existing mappings; remove affected mappings first");
                 }
             }
             if (hasMappings && (!Objects.equals(schema.getSchemaDefinition(), replacement.getSchemaDefinition())
+                    || !Objects.equals(schema.getSamplePayload(), replacement.getSamplePayload())
+                    || !Objects.equals(schema.getTargetSchemaDefinition(), replacement.getTargetSchemaDefinition())
+                    || !Objects.equals(schema.getTargetSamplePayload(), replacement.getTargetSamplePayload())
+                    || !Objects.equals(schema.getTargetFormat(), replacement.getTargetFormat())
+                    || !Objects.equals(schema.getTargetRawContent(), replacement.getTargetRawContent())
                     || PayloadSchemas.format(schema) != replacement.getFormat())) integration.setReviewRequired(true);
             schema.setFormat(replacement.getFormat());
             schema.setSchemaDefinition(replacement.getSchemaDefinition());
+            schema.setSamplePayload(replacement.getSamplePayload());
+            schema.setTargetSchemaDefinition(replacement.getTargetSchemaDefinition());
+            schema.setTargetSamplePayload(replacement.getTargetSamplePayload());
+            schema.setTargetFormat(replacement.getTargetFormat());
+            schema.setTargetRawContent(replacement.getTargetRawContent());
             schema.setRawContent(replacement.getRawContent());
             schema.setSampleFile(replacement.getSampleFile());
             schema.setFileName(replacement.getFileName());
@@ -84,8 +111,24 @@ public class MappingServiceImpl implements MappingService {
         }
 
         MappingSchema savedSchema = schemaRepository.save(schema);
+        if (!integration.getMappingSchemas().contains(savedSchema)) {
+            integration.getMappingSchemas().add(savedSchema);
+        }
+        if (!obsoleteSchemaIds.isEmpty()) {
+            boolean removedMappings = integration.getFieldMappings()
+                    .removeIf(mapping -> referencesSchema(mapping, obsoleteSchemaIds));
+            if (removedMappings) {
+                fieldMappingRepository.flush();
+            }
+            integration.getMappingSchemas().removeIf(existing -> obsoleteSchemaIds.contains(existing.getId()));
+        }
         integration.setStatus(IntegrationStatus.DRAFT);
         return mapper.toSchemaResponse(savedSchema);
+    }
+
+    private boolean referencesSchema(FieldMapping mapping, Set<Long> schemaIds) {
+        return schemaIds.contains(mapping.getSourceSchema().getId())
+                || schemaIds.contains(mapping.getTargetSchema().getId());
     }
 
     @Override
@@ -114,7 +157,6 @@ public class MappingServiceImpl implements MappingService {
         Integration integration = integrationRepository.findByIdForUpdate(integrationId)
                 .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
 
-        // Tüm şemaların bu entegrasyona ait olduğunu silme işleminden önce doğrula.
         List<FieldMapping> newMappings = mappingRequests.stream().map(req -> {
             MappingSchema sourceSchema = schemaRepository.findByIdAndIntegrationId(req.getSourceSchemaId(), integrationId)
                     .orElseThrow(() -> new EntityNotFoundException("Source schema not found in integration: " + integrationId));
@@ -123,13 +165,26 @@ public class MappingServiceImpl implements MappingService {
                     .orElseThrow(() -> new EntityNotFoundException("Target schema not found in integration: " + integrationId));
 
             PayloadSchemas.validateMappingPath(sourceSchema, req.getSourceFieldPath());
-            PayloadSchemas.validateMappingPath(targetSchema, req.getTargetFieldPath());
+            PayloadSchemas.validateMappingPath(targetSchema, req.getTargetFieldPath(),
+                    !Boolean.TRUE.equals(integration.getHasMiddleware()) && Objects.equals(sourceSchema.getId(), targetSchema.getId()));
 
-            // v1 Manuel süreç olduğu için isAiGenerated'ı doğrudan false set edebiliriz
             req.setIsAiGenerated(false);
             req.setAiConfidenceScore(null);
 
-            return mapper.toMappingEntity(req, integration, sourceSchema, targetSchema);
+            FieldMapping replacement = mapper.toMappingEntity(req, integration, sourceSchema, targetSchema);
+            replacement.setOrigin("MANUAL");
+            integration.getFieldMappings().stream().filter(old ->
+                    Objects.equals(old.getSourceSchema().getId(), sourceSchema.getId())
+                    && Objects.equals(old.getTargetSchema().getId(), targetSchema.getId())
+                    && Objects.equals(old.getSourceFieldPath(), req.getSourceFieldPath())
+                    && Objects.equals(old.getTargetFieldPath(), req.getTargetFieldPath())).findFirst().ifPresent(old -> {
+                        replacement.setOrigin(old.getOrigin());
+                        replacement.setIsAiGenerated(old.getIsAiGenerated());
+                        replacement.setAiConfidenceScore(old.getAiConfidenceScore());
+                        replacement.setAiJobId(old.getAiJobId());
+                        replacement.setAiSuggestionId(old.getAiSuggestionId());
+                    });
+            return replacement;
         }).collect(Collectors.toList());
 
         fieldMappingRepository.deleteByIntegrationId(integrationId);

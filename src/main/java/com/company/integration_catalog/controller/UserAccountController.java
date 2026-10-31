@@ -42,7 +42,6 @@ public class UserAccountController {
         return UserResponse.from(lifecycle.invite(request.getUsername(), request.getEmail(), request.getRole()));
     }
 
-    // A class, rather than a record, avoids generated toString exposing passwords.
     @lombok.Getter
     @lombok.Setter
     public static class InviteUserRequest {

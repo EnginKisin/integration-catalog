@@ -52,7 +52,6 @@ public class AccountLifecycleController {
 
     public record GenericMessage(String message) {}
 
-    // No generated toString on any request carrying a password or token.
     @Getter @Setter
     public static class TokenRequest {
         @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{43}") private String token;

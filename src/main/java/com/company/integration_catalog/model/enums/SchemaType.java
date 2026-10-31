@@ -6,5 +6,12 @@ public enum SchemaType {
     DEST_TO_MW_RESPONSE,
     MW_TO_SOURCE_RESPONSE,
     SOURCE_TO_DEST_REQUEST,
-    DEST_TO_SOURCE_RESPONSE
+    DEST_TO_SOURCE_RESPONSE;
+
+    public boolean isCompatibleWithFlow(boolean hasMiddleware) {
+        return switch (this) {
+            case SOURCE_TO_DEST_REQUEST, DEST_TO_SOURCE_RESPONSE -> !hasMiddleware;
+            default -> hasMiddleware;
+        };
+    }
 }

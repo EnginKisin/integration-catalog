@@ -24,17 +24,14 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class IntegrationSystemSelectionTests {
     @Mock IntegrationRepository integrations;
-    @Mock SourceRepository sources;
-    @Mock DestinationRepository destinations;
-    @Mock MiddlewareRepository middlewares;
+    @Mock SystemRepository systems;
     @Mock EnvironmentConfigRepository configs;
     @Mock CredentialCrypto crypto;
     @Mock CredentialAccess access;
     private IntegrationServiceImpl service;
 
     @BeforeEach void setUp() {
-        service = new IntegrationServiceImpl(integrations, configs, new IntegrationMapper(), sources,
-                destinations, middlewares, new IntegrationCompletionValidator(), crypto, access);
+        service = new IntegrationServiceImpl(integrations, configs, new IntegrationMapper(), systems, new IntegrationCompletionValidator(), crypto, access);
     }
 
     @ParameterizedTest @ValueSource(strings = {"source", "destination", "middleware"})
@@ -62,9 +59,9 @@ class IntegrationSystemSelectionTests {
         var request = request(replacement); stubSystems(replacement);
         when(integrations.findByIdForUpdate(1L)).thenReturn(Optional.of(integration));
         assertThatThrownBy(() -> service.updateIntegration(1L, request)).isInstanceOf(ResponseStatusException.class);
-        assertThat(integration.getSource().getId()).isEqualTo(10L);
-        assertThat(integration.getDestination().getId()).isEqualTo(20L);
-        assertThat(integration.getMiddleware().getId()).isEqualTo(30L);
+        assertThat(integration.getSourceSystem().getId()).isEqualTo(10L);
+        assertThat(integration.getDestinationSystem().getId()).isEqualTo(20L);
+        assertThat(integration.getMiddlewareSystem().getId()).isEqualTo(30L);
         assertThat(integration.getStatus()).isEqualTo(IntegrationStatus.COMPLETED);
         verify(integrations, never()).save(any());
     }
@@ -107,36 +104,67 @@ class IntegrationSystemSelectionTests {
         when(integrations.findByIdForUpdate(1L)).thenReturn(Optional.of(integration));
         when(integrations.save(integration)).thenReturn(integration);
     }
+
+    @Test void aSharedSystemIsLockedOnceEvenWhenItFillsEveryRole() {
+        var shared = CatalogSystem.builder().id(10L).name("SAP").build();
+        when(systems.findByIdForUpdate(10L)).thenReturn(Optional.of(shared));
+        when(integrations.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        var request = request(existing());
+        request.setDestinationSystemId(10L);
+        request.setMiddlewareSystemId(10L);
+
+        var response = service.createIntegration(request);
+
+        assertThat(response.getSourceSystemId()).isEqualTo(10L);
+        assertThat(response.getDestinationSystemId()).isEqualTo(10L);
+        assertThat(response.getMiddlewareSystemId()).isEqualTo(10L);
+        verify(systems, times(1)).findByIdForUpdate(10L);
+    }
+
+    @Test void inactiveSelectionCannotBeMovedIntoAnotherRole() {
+        var integration = existing();
+        integration.getSourceSystem().setActive(false);
+        stubSystems(integration);
+        when(integrations.findByIdForUpdate(1L)).thenReturn(Optional.of(integration));
+        var request = request(integration);
+        request.setSourceSystemId(20L);
+        request.setDestinationSystemId(10L);
+
+        assertThatThrownBy(() -> service.updateIntegration(1L, request)).isInstanceOf(ResponseStatusException.class);
+        assertThat(integration.getSourceSystem().getId()).isEqualTo(10L);
+        assertThat(integration.getDestinationSystem().getId()).isEqualTo(20L);
+        verify(integrations, never()).save(any());
+    }
     private void stubSystems(Integration integration) {
-        when(sources.findByIdForUpdate(integration.getSource().getId())).thenReturn(Optional.of(integration.getSource()));
-        when(destinations.findByIdForUpdate(integration.getDestination().getId())).thenReturn(Optional.of(integration.getDestination()));
-        when(middlewares.findByIdForUpdate(integration.getMiddleware().getId())).thenReturn(Optional.of(integration.getMiddleware()));
+        when(systems.findByIdForUpdate(integration.getSourceSystem().getId())).thenReturn(Optional.of(integration.getSourceSystem()));
+        when(systems.findByIdForUpdate(integration.getDestinationSystem().getId())).thenReturn(Optional.of(integration.getDestinationSystem()));
+        when(systems.findByIdForUpdate(integration.getMiddlewareSystem().getId())).thenReturn(Optional.of(integration.getMiddlewareSystem()));
     }
     private void deactivate(Integration integration, String type) {
         switch (type) {
-            case "source" -> integration.getSource().setActive(false);
-            case "destination" -> integration.getDestination().setActive(false);
-            case "middleware" -> integration.getMiddleware().setActive(false);
+            case "source" -> integration.getSourceSystem().setActive(false);
+            case "destination" -> integration.getDestinationSystem().setActive(false);
+            case "middleware" -> integration.getMiddlewareSystem().setActive(false);
         }
     }
     private void changeId(Integration integration, String type) {
         switch (type) {
-            case "source" -> integration.getSource().setId(11L);
-            case "destination" -> integration.getDestination().setId(21L);
-            case "middleware" -> integration.getMiddleware().setId(31L);
+            case "source" -> integration.getSourceSystem().setId(11L);
+            case "destination" -> integration.getDestinationSystem().setId(21L);
+            case "middleware" -> integration.getMiddlewareSystem().setId(31L);
         }
     }
     private Integration existing() {
         return Integration.builder().id(1L).name("Orders").description("Order transfer")
-                .source(Source.builder().id(10L).build()).destination(Destination.builder().id(20L).build())
-                .middleware(Middleware.builder().id(30L).build()).hasMiddleware(true).isSync(false)
+                .sourceSystem(CatalogSystem.builder().id(10L).build()).destinationSystem(CatalogSystem.builder().id(20L).build())
+                .middlewareSystem(CatalogSystem.builder().id(30L).build()).hasMiddleware(true).isSync(false)
                 .sourcePayloadFormat(PayloadFormat.JSON).destinationPayloadFormat(PayloadFormat.JSON)
                 .status(IntegrationStatus.COMPLETED).build();
     }
     private IntegrationRequestDTO request(Integration integration) {
         return IntegrationRequestDTO.builder().name(integration.getName()).description(integration.getDescription())
-                .sourceId(integration.getSource().getId()).destinationId(integration.getDestination().getId())
-                .middlewareId(integration.getMiddleware().getId()).hasMiddleware(true).isSync(false)
+                .sourceSystemId(integration.getSourceSystem().getId()).destinationSystemId(integration.getDestinationSystem().getId())
+                .middlewareSystemId(integration.getMiddlewareSystem().getId()).hasMiddleware(true).isSync(false)
                 .sourcePayloadFormat(PayloadFormat.JSON).destinationPayloadFormat(PayloadFormat.JSON).build();
     }
 }

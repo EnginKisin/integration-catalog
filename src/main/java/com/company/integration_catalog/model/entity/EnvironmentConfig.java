@@ -56,7 +56,7 @@ public class EnvironmentConfig extends BaseEntity {
     @Column(name = "auth_credentials", columnDefinition = "jsonb")
     private Map<String, Object> authCredentials;
 
-    // --- Middleware'e Özel Alanlar (Eğer configTarget == MIDDLEWARE ise doldurulacak) ---
+    // Yeniden deneme metaverisi; dış isteği çalıştırmaz.
     
     @Column(name = "retry_count")
     private Integer retryCount;

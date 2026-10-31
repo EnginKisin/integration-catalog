@@ -4,6 +4,66 @@ Ana kaynaklar `application.properties`, `.env.example`, `docker-compose.yml` ve
 `Dockerfile`'dır. `.env` dosyasını Compose okur; IDE veya `./mvnw` kendiliğinden
 okumaz. IDE Run Configuration üzerinden ortam değişkenlerini ayrıca tanımlayın.
 
+## Docker ile çalıştırma
+
+Compose, PostgreSQL ve backend'i aynı ağda çalıştırır; backend DB'ye
+`postgres:5432` üzerinden bağlanır. İlk kurulum değişkenleri ve hızlı başlangıç
+[proje README'sindedir](../README.md#başlangıç). İlk image build'i bağımlılıkları
+ve base image'ları indirir. Java 21 ile çok aşamalı build yapılır; çalışma
+image'ında JRE/JAR bulunur ve uygulama root olmayan kullanıcıyla çalışır.
+Image build'i testleri çalıştırmaz; test/CI ayrı adımdır.
+
+```sh
+docker compose up -d --build --wait --wait-timeout 180
+docker compose ps
+```
+
+Davet/reset postalarını yerelde görmek için `--profile mail` ekleyin; Mailpit
+`http://localhost:8025` adresindedir ve gerçek alıcılara göndermez. Gerçek SMTP
+kurulumu [kullanıcı yönetimindedir](user-management.md#token-posta-kuyruğu-ve-smtp).
+Ollama, yalnızca `ai` profiliyle başlar; online model indirme ve internete kapalı
+çalışma ağı ayrıdır. Gemini için Ollama gerekmez. İki sağlayıcının kurulumu
+[AI rehberindedir](ai-mapping.md).
+
+Varsayılan host portları backend için `127.0.0.1:8080`, DB için
+`127.0.0.1:5432`'dir. `.env` içindeki `APP_PORT` ve `POSTGRES_PORT` bunları değiştirir.
+IDE'deki backend ile container aynı host portunu kullanamaz.
+
+### Kod ve env değişikliklerini uygulama
+
+Yalnızca `.env` değiştiyse:
+
+```sh
+docker compose up -d --wait app
+```
+
+Java kaynağı veya Dockerfile değiştiyse:
+
+```sh
+docker compose up -d --build --wait --wait-timeout 180 app
+```
+
+Compose değişen ayarlarla container'ı yeniden oluşturur. `docker compose restart app`
+mevcut container'ı yeniden başlatır; yeni env değerlerini almaz veya kodu derlemez.
+Backend yeniden başlayınca bellekteki oturumlar kapanır; tekrar giriş gerekir.
+DB zaten hazırsa komutlara `--no-deps` eklenerek yalnızca app güncellenebilir.
+
+`.env` Git'e/build context'ine alınmaz; secret'lar image'a yazılmaz, çalışma anında
+backend'e aktarılır. Docker yönetim yetkisi olan kişiler environment'a erişebilir.
+Mevcut DB parolası `.env` değiştirilerek değiştirilmez; credential anahtarını
+rastgele yenilemek eski veriyi okunamaz yapar.
+
+### Volume ve eski veritabanı
+
+`postgres_data` veritabanını, `ollama_data` indirilen modelleri saklar. Aynı verilere
+ulaşmak için Compose proje adı/dizini aynı kalmalıdır. `docker compose down`
+volume'leri korur; `down -v` volume'leri siler ve normal durdurma yöntemi değildir.
+
+Bu sürüm eski ayrı source/destination/middleware kataloglarını ortak `systems`
+modeline taşıyan bir migration içermez; boş DB ile başlanabilir. Kalıcı verili eski
+DB için ayrıca geçiş hazırlanmalıdır. Yeni DB'de entity'lerden şema oluşturulur;
+mevcut DB değişikliklerinin sınırları aşağıdaki yapılandırma bölümündedir.
+
 ## Ortam değişkenleri
 
 | Değişken | Varsayılan / gereklilik | Etki |
@@ -37,13 +97,16 @@ Spring ayarları environment üzerinden değiştirilebilir. Örneğin
 `SPRING_JPA_SHOW_SQL=false` SQL logunu kapatır. Mevcut `ddl-auto=update` geliştirme
 şema yönetimidir; sürümlü üretim migration'ı değildir. Üretime geçişte şema
 değişiklikleri ayrıca hazırlanıp gerçek PostgreSQL üzerinde doğrulanmalıdır.
-XML/IDOC/CSV/Excel desteğini mevcut DB'ye açmadan önce
-[payload migration](migrations/20261025-payload-content.sql) uygulanmalıdır;
-özellikle EXCEL enum CHECK kısıtları yalnızca Hibernate update'e bırakılmamalıdır.
+Yeni/boş DB'de tablolar ve kolonlar güncel entity'lerden otomatik oluşturulur.
+Mevcut DB'deki format CHECK kısıtları ayrıca kontrol edilmelidir; özellikle
+EXCEL gibi yeni enum değerlerinin eklenmesi yalnızca Hibernate update'e
+bırakılmamalıdır.
+`CATALOG_CREDENTIALS_MIGRATE` yalnızca eski credential içeriğini şifreler;
+tablo/kolon değişikliklerini yöneten bir şema migration sistemi değildir.
 
 ## IDE ile çalıştırma
 
-1. JDK 21 seçin. [Docker kurulumundaki](docker.md) `.env` değerlerini tamamlayın.
+1. JDK 21 seçin. [başlangıç rehberindeki](../README.md#başlangıç) `.env` değerlerini tamamlayın.
 2. Yalnızca DB ve yerel postayı başlatın:
 
 ```sh
@@ -81,16 +144,71 @@ yeniden yazamazsınız.
 | Hikari validation timeout | Compose app: 2000 ms; bağlantı doğrulama sınırı |
 | SMTP bağlantı / okuma / yazma | Her biri 5000 ms |
 | Posta worker | 15 saniye aralık, en fazla 10 iş; en fazla 8 deneme |
-| Auth POST IP limiti | 60 saniyede 20 istek; instance belleğinde |
+| Auth POST IP limiti | Giriş/davet kabulü/parola/e-posta işlemlerinde 60 saniyede 20 istek; instance belleğinde |
 | Aynı hesap/amaç için token üretimi | En az 60 saniye arayla |
 | Davet geçerliliği | 24 saat |
 | Reset / e-posta doğrulama | 30 dakika |
 | Docker app health | 15 saniye aralık, 60 saniye başlangıç toleransı, 3 başarısız kontrol |
 | Compose stop grace | 30 saniye |
+| AI model isteği | Varsayılan 300 saniye; kuyrukta bekleme hariç, üst sınır 600 |
+| AI model çıktısı | Varsayılan 2048 token; kesilen çıktı reddedilir |
+
+AI işleri asenkrondur; frontend, `pollAfterMs` aralığında durum sorgular.
+Modelin bekleme bütçesi HTTP isteğinin açık tutulacağı süre değildir.
+Yerel modelin performansı ve Ollama/Gemini kurulumu için [AI eşleme](ai-mapping.md).
+`AI_PROVIDER`/`AI_MODEL` backend ayarıdır; Gemini seçilirse `GEMINI_API_KEY` gerekir.
+Compose, bu anahtarı yalnızca app servisine aktarır; Ollama'ya aktarmaz.
 
 Hikari sınırları HTTP/SQL sorgusu tamamlanma süresi değildir; Compose'da verilen
 değerler IDE'ye otomatik aktarılmaz. Docker health kontrolünde curl en fazla
 8 saniye bekler, Docker kontrol timeout'u 10 saniyedir.
+
+## Sağlık kontrolleri
+
+Spring Boot Actuator yalnızca health endpoint'ini dışarı açar:
+
+| Endpoint | Kontrol | Kullanım |
+|---|---|---|
+| `GET /actuator/health` | Genel sağlık | İzleme |
+| `GET /actuator/health/liveness` | Uygulama yaşam durumu | Yeniden başlatma kararı |
+| `GET /actuator/health/readiness` | Hazırlık durumu ve PostgreSQL bağlantısı | Trafik yönlendirme |
+
+Üçü de giriş gerektirmeden çağrılır; bileşenler, bağlantı adresleri ve hata ayrıntıları
+ADMIN dahil hiçbir kullanıcıya bu yanıtlarda gösterilmez. Diğer Actuator yolları kapalıdır.
+Sağlıklı yanıtta `status=UP`, HTTP 200; DOWN veya OUT_OF_SERVICE durumunda HTTP 503 döner.
+
+PostgreSQL bağlantısı kesilirse readiness başarısız olur, liveness bundan etkilenmez.
+Veritabanı sorunu nedeniyle uygulamayı sürekli yeniden başlatmak yerine trafik durdurulabilir.
+Readiness Spring Boot'un başlatma/kapatma hazırlık durumunu da dikkate alır. Şifreli
+kayıt dönüşümü gibi başlangıç işlemleri bitmeden uygulama hazır kabul edilmez.
+
+Yerel kontrol:
+
+```sh
+curl -i http://localhost:8080/actuator/health/liveness
+curl -i http://localhost:8080/actuator/health/readiness
+```
+
+Bu endpoint'ler veritabanındaki her kaydın doğruluğunu veya dış entegrasyonların
+çalıştığını garanti etmez. Docker Compose, uygulama container'ının readiness
+endpoint'ini Dockerfile HEALTHCHECK ile takip eder. Başlatma ve sınırlar için
+[Docker kurulumu](#docker-ile-çalıştırma) belgesine bakın.
+SMTP health kontrolü kapalıdır; posta kuyruğu ADMIN'in
+`GET /api/v1/users/mail-status` endpoint'inden ayrıca izlenir.
+Health kontrolü yetkilendirme/CSRF akışının uçtan uca çalıştığını sınamaz.
+
+`HealthEndpointTests`, gerçek Actuator ve güvenlik filtreleriyle endpoint erişimini,
+gizliliği, availability durumlarını ve simüle edilen veritabanı kesintisini doğrular.
+Gerçek PostgreSQL bağlantı kesintisi bu testte kullanılmaz.
+
+AI sağlayıcısı da genel readiness'e dahil değildir; AI arızası manuel eşlemeyi
+kapatmaz. `GET /api/v1/integrations/{id}/mappings/ai/capabilities` ayrı sorgulanır.
+
+PostgreSQL `pg_isready` başarılı olunca app başlar. Docker HEALTHCHECK her 15
+saniyede readiness'i çağırır; 60 saniye başlangıç toleransı ve üç başarısız kontrol
+sonunda `unhealthy` olur. Süreç kapanırsa `restart: unless-stopped` yeniden başlatır;
+elle durdurulmuş servis veya yalnızca `unhealthy` durumundaki çalışan süreç
+kendiliğinden yeniden başlatılmaz. Compose sağlık durumuna göre trafiği kesmez.
 
 ## Yedekleme ve anahtar yönetimi
 
@@ -110,7 +228,7 @@ sonra migrate bayrağını kapatın. Eski yedeklerdeki açık değerler kendili�
 | Belirti | Kontrol |
 |---|---|
 | İlk açılış duruyor | DB bağlantısı, 32 byte Base64 key, boş kullanıcı tablosunda bootstrap bilgileri |
-| Anahtar / decrypt hatası | Aynı DB'ye ait kalıcı anahtarı kullan; yanlış anahtarla migration deneme |
+| Anahtar / decrypt hatası | Aynı DB'ye ait kalıcı anahtarı kullan; yeni anahtar üretmek eski veriyi çözmez |
 | Compose DB auth hatası | Volume ilk oluşturulduğundaki parola ile environment eşleşiyor mu? |
 | Login/yazma 403 | Aynı oturum çerezi ve güncel CSRF başlığı; HTTP'de Secure cookie yanlışlıkla açık mı? |
 | Giriş sonrası tekrar 401 | Davet doğrulaması, aktiflik, reset zorunluluğu veya oturum iptali |

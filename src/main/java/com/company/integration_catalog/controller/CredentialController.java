@@ -24,7 +24,6 @@ public class CredentialController {
                 .body(new CredentialResponse(service.reveal(integrationId, environment, target)));
     }
 
-    // No generated toString: framework debug logging must not print secret values.
     @Getter
     @RequiredArgsConstructor
     public static class CredentialResponse {

@@ -4,15 +4,11 @@ import com.company.integration_catalog.dto.integration.IntegrationRequestDTO;
 import com.company.integration_catalog.dto.integration.IntegrationResponseDTO;
 import com.company.integration_catalog.mapper.IntegrationMapper;
 import com.company.integration_catalog.model.entity.Integration;
-import com.company.integration_catalog.model.entity.Source;
-import com.company.integration_catalog.model.entity.Destination;
-import com.company.integration_catalog.model.entity.Middleware;
+import com.company.integration_catalog.model.entity.CatalogSystem;
 import com.company.integration_catalog.model.enums.PayloadFormat;
 import com.company.integration_catalog.repository.EnvironmentConfigRepository;
 import com.company.integration_catalog.repository.IntegrationRepository;
-import com.company.integration_catalog.repository.SourceRepository;
-import com.company.integration_catalog.repository.DestinationRepository;
-import com.company.integration_catalog.repository.MiddlewareRepository;
+import com.company.integration_catalog.repository.SystemRepository;
 import jakarta.persistence.EntityNotFoundException;
 import com.company.integration_catalog.validation.IntegrationCompletionValidator;
 import com.company.integration_catalog.security.CredentialCrypto;
@@ -50,22 +46,20 @@ class IntegrationServiceImplTests {
 
     @Mock private IntegrationRepository integrationRepository;
     @Mock private EnvironmentConfigRepository configRepository;
-    @Mock private SourceRepository sourceRepository;
-    @Mock private DestinationRepository destinationRepository;
-    @Mock private MiddlewareRepository middlewareRepository;
+    @Mock private SystemRepository systemRepository;
     @Mock private CredentialAccess credentialAccess;
     private final CredentialCrypto crypto = new CredentialCrypto(
             java.util.Base64.getEncoder().encodeToString(new byte[32]), new ObjectMapper());
 
     private IntegrationServiceImpl service;
-    private final Source source = Source.builder().id(10L).build();
-    private final Destination destination = Destination.builder().id(20L).build();
-    private final Middleware middleware = Middleware.builder().id(30L).build();
+    private final CatalogSystem source = CatalogSystem.builder().id(10L).build();
+    private final CatalogSystem destination = CatalogSystem.builder().id(20L).build();
+    private final CatalogSystem middleware = CatalogSystem.builder().id(30L).build();
 
     @BeforeEach
     void setUp() {
         service = new IntegrationServiceImpl(integrationRepository, configRepository,
-                new IntegrationMapper(), sourceRepository, destinationRepository, middlewareRepository,
+                new IntegrationMapper(), systemRepository,
                 new IntegrationCompletionValidator(), crypto, credentialAccess);
     }
 
@@ -79,13 +73,13 @@ class IntegrationServiceImplTests {
 
         IntegrationRequestDTO request = IntegrationRequestDTO.builder()
                 .name("Order integration").description("Transfers orders")
-                .sourceId(10L).destinationId(20L)
+                .sourceSystemId(10L).destinationSystemId(20L)
                 .sourcePayloadFormat(PayloadFormat.JSON)
                 .destinationPayloadFormat(PayloadFormat.JSON)
                 .hasMiddleware(false).isSync(requestedSync)
                 .build();
-        when(sourceRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(source));
-        when(destinationRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(destination));
+        when(systemRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(source));
+        when(systemRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(destination));
 
         IntegrationResponseDTO response = service.updateIntegration(1L, request);
 
@@ -98,14 +92,14 @@ class IntegrationServiceImplTests {
     @ParameterizedTest
     @CsvSource({"true,true", "true,false", "false,true", "false,false"})
     void savesResolvedSystemsOnCreateAndUpdate(boolean creating, boolean withMiddleware) {
-        Integration existing = Integration.builder().id(1L).middleware(middleware).build();
+        Integration existing = Integration.builder().id(1L).middlewareSystem(middleware).build();
         if (!creating) {
             when(integrationRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
         }
-        when(sourceRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(source));
-        when(destinationRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(destination));
+        when(systemRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(source));
+        when(systemRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(destination));
         if (withMiddleware) {
-            when(middlewareRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(middleware));
+            when(systemRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(middleware));
         }
         when(integrationRepository.save(any(Integration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -116,14 +110,14 @@ class IntegrationServiceImplTests {
 
         ArgumentCaptor<Integration> captor = ArgumentCaptor.forClass(Integration.class);
         verify(integrationRepository).save(captor.capture());
-        assertThat(captor.getValue().getSource()).isSameAs(source);
-        assertThat(captor.getValue().getDestination()).isSameAs(destination);
-        assertThat(captor.getValue().getMiddleware()).isSameAs(withMiddleware ? middleware : null);
-        assertThat(response.getSourceId()).isEqualTo(10L);
-        assertThat(response.getDestinationId()).isEqualTo(20L);
-        assertThat(response.getMiddlewareId()).isEqualTo(withMiddleware ? 30L : null);
+        assertThat(captor.getValue().getSourceSystem()).isSameAs(source);
+        assertThat(captor.getValue().getDestinationSystem()).isSameAs(destination);
+        assertThat(captor.getValue().getMiddlewareSystem()).isSameAs(withMiddleware ? middleware : null);
+        assertThat(response.getSourceSystemId()).isEqualTo(10L);
+        assertThat(response.getDestinationSystemId()).isEqualTo(20L);
+        assertThat(response.getMiddlewareSystemId()).isEqualTo(withMiddleware ? 30L : null);
         if (!withMiddleware) {
-            verifyNoInteractions(middlewareRepository);
+            verify(systemRepository, never()).findByIdForUpdate(30L);
         }
     }
 
@@ -131,19 +125,19 @@ class IntegrationServiceImplTests {
     @CsvSource({"true,Source", "true,Destination", "true,Middleware",
             "false,Source", "false,Destination", "false,Middleware"})
     void rejectsMissingSystemsBeforeSavingOrModifyingExistingIntegration(boolean creating, String missing) {
-        Source originalSource = Source.builder().id(100L).build();
-        Destination originalDestination = Destination.builder().id(200L).build();
-        Middleware originalMiddleware = Middleware.builder().id(300L).build();
+        CatalogSystem originalSource = CatalogSystem.builder().id(100L).build();
+        CatalogSystem originalDestination = CatalogSystem.builder().id(200L).build();
+        CatalogSystem originalMiddleware = CatalogSystem.builder().id(300L).build();
         Integration existing = Integration.builder().id(1L).name("Original")
-                .source(originalSource).destination(originalDestination).middleware(originalMiddleware).build();
+                .sourceSystem(originalSource).destinationSystem(originalDestination).middlewareSystem(originalMiddleware).build();
         if (!creating) {
             when(integrationRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
         }
         if (!missing.equals("Source")) {
-            when(sourceRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(source));
+            when(systemRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(source));
         }
         if (missing.equals("Middleware")) {
-            when(destinationRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(destination));
+            when(systemRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(destination));
         }
         IntegrationRequestDTO request = request(true);
 
@@ -153,13 +147,13 @@ class IntegrationServiceImplTests {
             } else {
                 service.updateIntegration(1L, request);
             }
-        }).isInstanceOf(EntityNotFoundException.class).hasMessageStartingWith(missing + " not found with id:");
+        }).isInstanceOf(EntityNotFoundException.class).hasMessageStartingWith("System not found with id:");
 
         verify(integrationRepository, never()).save(any());
         assertThat(existing.getName()).isEqualTo("Original");
-        assertThat(existing.getSource()).isSameAs(originalSource);
-        assertThat(existing.getDestination()).isSameAs(originalDestination);
-        assertThat(existing.getMiddleware()).isSameAs(originalMiddleware);
+        assertThat(existing.getSourceSystem()).isSameAs(originalSource);
+        assertThat(existing.getDestinationSystem()).isSameAs(originalDestination);
+        assertThat(existing.getMiddlewareSystem()).isSameAs(originalMiddleware);
     }
 
     @Test
@@ -167,13 +161,13 @@ class IntegrationServiceImplTests {
         assertThatThrownBy(() -> service.updateIntegration(1L, request(true)))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Integration not found with id: 1");
-        verifyNoInteractions(sourceRepository, destinationRepository, middlewareRepository);
+        verifyNoInteractions(systemRepository);
         verify(integrationRepository, never()).save(any());
     }
 
     private IntegrationRequestDTO request(boolean withMiddleware) {
         return IntegrationRequestDTO.builder().name("Orders").description("Order transfer")
-                .sourceId(10L).destinationId(20L).middlewareId(withMiddleware ? 30L : null)
+                .sourceSystemId(10L).destinationSystemId(20L).middlewareSystemId(withMiddleware ? 30L : null)
                 .sourcePayloadFormat(PayloadFormat.JSON).destinationPayloadFormat(PayloadFormat.JSON)
                 .isSync(false).hasMiddleware(withMiddleware).build();
     }

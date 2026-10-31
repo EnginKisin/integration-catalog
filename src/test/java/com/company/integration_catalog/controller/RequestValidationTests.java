@@ -2,9 +2,7 @@ package com.company.integration_catalog.controller;
 
 import com.company.integration_catalog.service.IntegrationService;
 import com.company.integration_catalog.service.MappingService;
-import com.company.integration_catalog.service.SourceService;
-import com.company.integration_catalog.service.DestinationService;
-import com.company.integration_catalog.service.MiddlewareService;
+import com.company.integration_catalog.service.SystemService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityNotFoundException;
@@ -34,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({IntegrationController.class, MappingController.class,
-        SourceController.class, DestinationController.class, MiddlewareController.class})
+        SystemController.class})
 @AutoConfigureMockMvc(addFilters = false)
 class RequestValidationTests {
     private static final String BASE = "/api/v1/integrations/1";
@@ -51,9 +49,7 @@ class RequestValidationTests {
     @Autowired private ObjectMapper objectMapper;
     @MockitoBean private IntegrationService integrationService;
     @MockitoBean private MappingService mappingService;
-    @MockitoBean private SourceService sourceService;
-    @MockitoBean private DestinationService destinationService;
-    @MockitoBean private MiddlewareService middlewareService;
+    @MockitoBean private SystemService systemService;
 
     @Test
     void completionReturnsConflictWithAllMissingRequirements() throws Exception {
@@ -73,7 +69,7 @@ class RequestValidationTests {
     }
 
     static Stream<Arguments> missingSystems() {
-        return Stream.of("POST", "PUT").flatMap(method -> Stream.of("Source", "Destination", "Middleware")
+        return Stream.of("POST", "PUT").flatMap(method -> Stream.of("System")
                 .map(system -> Arguments.of(method, system)));
     }
 
@@ -88,7 +84,7 @@ class RequestValidationTests {
             when(integrationService.updateIntegration(eq(1L), any())).thenThrow(new EntityNotFoundException(message));
         }
         ObjectNode body = namedRequest("integrations", "Orders")
-                .put("hasMiddleware", true).put("middlewareId", 30L);
+                .put("hasMiddleware", true).put("middlewareSystemId", 30L);
         mvc.perform(request(HttpMethod.valueOf(method), creating ? "/api/v1/integrations" : BASE)
                         .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound())
@@ -106,18 +102,18 @@ class RequestValidationTests {
 
     @ParameterizedTest
     @MethodSource("invalidMiddlewareSelections")
-    void rejectsInconsistentMiddlewareSelection(String method, boolean hasMiddleware, Long middlewareId)
+    void rejectsInconsistentMiddlewareSelection(String method, boolean hasMiddleware, Long middlewareSystemId)
             throws Exception {
         ObjectNode body = namedRequest("integrations", "Orders").put("hasMiddleware", hasMiddleware);
-        if (middlewareId != null) {
-            body.put("middlewareId", middlewareId);
+        if (middlewareSystemId != null) {
+            body.put("middlewareSystemId", middlewareSystemId);
         }
         String path = method.equals("POST") ? "/api/v1/integrations" : BASE;
         mvc.perform(request(HttpMethod.valueOf(method), path).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("middlewareId")));
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("middlewareSystemId")));
         verifyNoInteractions(integrationService);
     }
 
@@ -131,9 +127,9 @@ class RequestValidationTests {
     void acceptsConsistentMiddlewareSelection(String method, boolean hasMiddleware) throws Exception {
         ObjectNode body = namedRequest("integrations", "Orders").put("hasMiddleware", hasMiddleware);
         if (hasMiddleware) {
-            body.put("middlewareId", 30L);
+            body.put("middlewareSystemId", 30L);
         } else {
-            body.putNull("middlewareId");
+            body.putNull("middlewareSystemId");
         }
         boolean creating = method.equals("POST");
         mvc.perform(request(HttpMethod.valueOf(method), creating ? "/api/v1/integrations" : BASE)
@@ -142,18 +138,18 @@ class RequestValidationTests {
         if (creating) {
             verify(integrationService).createIntegration(argThat(dto ->
                     dto.getHasMiddleware() == hasMiddleware
-                            && (hasMiddleware ? Long.valueOf(30L).equals(dto.getMiddlewareId())
-                            : dto.getMiddlewareId() == null)));
+                            && (hasMiddleware ? Long.valueOf(30L).equals(dto.getMiddlewareSystemId())
+                            : dto.getMiddlewareSystemId() == null)));
         } else {
             verify(integrationService).updateIntegration(eq(1L), argThat(dto ->
                     dto.getHasMiddleware() == hasMiddleware
-                            && (hasMiddleware ? Long.valueOf(30L).equals(dto.getMiddlewareId())
-                            : dto.getMiddlewareId() == null)));
+                            && (hasMiddleware ? Long.valueOf(30L).equals(dto.getMiddlewareSystemId())
+                            : dto.getMiddlewareSystemId() == null)));
         }
     }
 
     static Stream<Arguments> invalidNames() {
-        return Stream.of("sources", "destinations", "middlewares", "integrations")
+        return Stream.of("systems", "integrations")
                 .flatMap(resource -> Stream.of("", "  \t\n", "x".repeat(101))
                         .map(name -> Arguments.of(resource, name)));
     }
@@ -165,11 +161,11 @@ class RequestValidationTests {
         mvc.perform(post("/api/v1/" + resource).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400));
-        verifyNoInteractions(integrationService, sourceService, destinationService, middlewareService);
+        verifyNoInteractions(integrationService, systemService);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"sources", "destinations", "middlewares", "integrations"})
+    @ValueSource(strings = {"systems", "integrations"})
     void acceptsNamesAtTheLengthLimit(String resource) throws Exception {
         mvc.perform(post("/api/v1/" + resource).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(namedRequest(resource, "x".repeat(100)))))
@@ -179,7 +175,7 @@ class RequestValidationTests {
     private ObjectNode namedRequest(String resource, String name) {
         ObjectNode body = objectMapper.createObjectNode().put("name", name).put("description", "Description");
         if (resource.equals("integrations")) {
-            body.put("sourceId", 1).put("destinationId", 2)
+            body.put("sourceSystemId", 1).put("destinationSystemId", 2)
                     .put("sourcePayloadFormat", "JSON").put("destinationPayloadFormat", "JSON")
                     .put("isSync", false).put("hasMiddleware", false);
         }
@@ -250,10 +246,20 @@ class RequestValidationTests {
         verifyNoInteractions(integrationService);
     }
 
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"sourceSystemId,0", "sourceSystemId,-1", "destinationSystemId,0", "destinationSystemId,-1"})
+    void rejectsNonPositiveSystemIds(String field, long value) throws Exception {
+        ObjectNode body = namedRequest("integrations", "Orders").put(field, value);
+        mvc.perform(post("/api/v1/integrations").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(integrationService);
+    }
+
     @Test
     void acceptsValidUpdate() throws Exception {
         mvc.perform(put(BASE).contentType(MediaType.APPLICATION_JSON).content("""
-                {"name":"Orders","description":"Order transfer","sourceId":1,"destinationId":2,
+                {"name":"Orders","description":"Order transfer","sourceSystemId":1,"destinationSystemId":2,
                  "sourcePayloadFormat":"JSON","destinationPayloadFormat":"JSON",
                  "isSync":true,"hasMiddleware":false}
                 """))
