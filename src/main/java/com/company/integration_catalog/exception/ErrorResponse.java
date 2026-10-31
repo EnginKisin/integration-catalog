@@ -1,25 +1,22 @@
 package com.company.integration_catalog.exception;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.Map;
 
 @Getter
-@Setter
-@AllArgsConstructor
 @Builder
 public class ErrorResponse {
-    private LocalDateTime timestamp;
+    private Instant timestamp;
     private int status;
     private String error;
+    private String code;
     private String message;
     private String path;
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private String code;
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<String> details;
+    private String requestId;
+    @Builder.Default private List<String> details = List.of();
+    @Builder.Default private List<Violation> violations = List.of();
+    @Builder.Default private Map<String, Object> params = Map.of();
 }

@@ -39,7 +39,7 @@ public final class MappingFields {
                     child instanceof Map<?,?> map && "element".equals(map.get("kind")));
             if ("attribute".equals(node.get("kind")) || !hasElements) {
                 if (fields.size() >= limit)
-                    throw new PayloadValidationException(422, "TOO_MANY_FIELDS", "XML field limit exceeded: " + limit);
+                    throw new PayloadValidationException(422, "TOO_MANY_FIELDS", "XML field limit exceeded", java.util.Map.of("maxFields", limit));
                 List<Object> values = node.get("sampleValues") instanceof List<?> samples ? new ArrayList<>(samples) : List.of();
                 fields.add(new MappingField(node.get("path").toString(), "unknown", values.isEmpty(), repeated, List.copyOf(values)));
             }

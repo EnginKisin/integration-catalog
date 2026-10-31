@@ -166,7 +166,8 @@ gövdesi `{"confirmed":true}` ile onaylar, ardından complete çağırır.
 Onay işaretini backend'in içerik uyumluluğunu bütünüyle doğruladığı şeklinde yorumlamayın.
 
 Tamamlamada eksik/tutarsız veri veya inceleme gereksinimi varsa 409 döner.
-`details` listesini ekranda gösterin. Tamamlama isteği kayıtları otomatik silmez
+`code=INTEGRATION_INCOMPLETE` yanıtındaki `violations` kodlarını ve parametrelerini
+yerelleştirerek gösterin; `details` İngilizce yedek açıklamadır. [Hata sözleşmesi](error-codes.md). Tamamlama isteği kayıtları otomatik silmez
 veya eksikleri kendiliğinden doldurmaz. Eski topolojinin uyumsuz şemaları ilk
 başarılı güncel örnek kaydında temizlenir; bu kayıt sonrasında schemas ve fields
 listelerini yeniden okuyun. Tekil şema silme endpoint'i yoktur.

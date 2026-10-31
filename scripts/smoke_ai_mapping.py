@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Exercise the configured API/model using a temporary integration, then remove that fixture."""
 import http.cookiejar
 import argparse
 import json
@@ -11,7 +10,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-
 
 def run_smoke(source_format='JSON', target_format='JSON'):
     values = {}
@@ -99,8 +97,7 @@ def run_smoke(source_format='JSON', target_format='JSON'):
         assert call('POST', path + '/ai/jobs', request, key=create_key)['jobId'] == job['jobId']
         started = time.monotonic()
         previous = None
-        # This script owns its temporary fixture; allow one complete inference plus
-        # scheduling overhead. The UI should keep polling nonterminal jobs instead.
+
         request_timeout = int(values.get('AI_REQUEST_TIMEOUT_SECONDS', '300'))
         deadline = started + max(1, min(600, request_timeout)) + 60
         while time.monotonic() < deadline:
@@ -164,7 +161,6 @@ def run_smoke(source_format='JSON', target_format='JSON'):
             call('DELETE', f'/systems/{system_id}')
         call('POST', '/auth/logout')
 
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-format', choices=['JSON', 'XML', 'IDOC'], default='JSON')
@@ -177,7 +173,6 @@ def main():
                 run_smoke(source, target)
     else:
         run_smoke(args.source_format, args.target_format)
-
 
 if __name__ == '__main__':
     main()

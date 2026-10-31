@@ -18,9 +18,8 @@ import com.company.integration_catalog.validation.IntegrationCompletionValidator
 import com.company.integration_catalog.security.CredentialCrypto;
 import com.company.integration_catalog.security.CredentialAccess;
 import com.company.integration_catalog.model.enums.UserPermission;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ApiException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,7 +56,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional(readOnly = true)
     public IntegrationResponseDTO getIntegrationById(Long id) {
         Integration integration = integrationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + id));
         return integrationMapper.toResponse(integration);
     }
 
@@ -74,7 +73,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional
     public IntegrationResponseDTO updateIntegration(Long id, IntegrationRequestDTO request) {
         Integration existingIntegration = integrationRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + id));
 
         boolean technicalChange = !Objects.equals(existingIntegration.getSourceSystem() == null ? null : existingIntegration.getSourceSystem().getId(), request.getSourceSystemId())
                 || !Objects.equals(existingIntegration.getDestinationSystem() == null ? null : existingIntegration.getDestinationSystem().getId(), request.getDestinationSystemId())
@@ -86,7 +85,7 @@ public class IntegrationServiceImpl implements IntegrationService {
         assignSystems(existingIntegration, request);
         existingIntegration.setName(request.getName());
         existingIntegration.setDescription(request.getDescription());
-        
+
         existingIntegration.setSourcePayloadFormat(request.getSourcePayloadFormat());
         existingIntegration.setDestinationPayloadFormat(request.getDestinationPayloadFormat());
         existingIntegration.setHasMiddleware(request.getHasMiddleware());
@@ -110,7 +109,7 @@ public class IntegrationServiceImpl implements IntegrationService {
         java.util.Map<Long, CatalogSystem> selected = new java.util.HashMap<>();
         for (Long systemId : ids) {
             selected.put(systemId, systemRepository.findByIdForUpdate(systemId)
-                    .orElseThrow(() -> new EntityNotFoundException("System not found with id: " + systemId)));
+                    .orElseThrow(() -> new ResourceNotFoundException("SYSTEM_NOT_FOUND", "System not found with id: " + systemId)));
         }
         CatalogSystem source = selected.get(request.getSourceSystemId());
         CatalogSystem destination = selected.get(request.getDestinationSystemId());
@@ -121,7 +120,7 @@ public class IntegrationServiceImpl implements IntegrationService {
                 || (!destination.isActive() && (creating || integration.getDestinationSystem() == null || !Objects.equals(integration.getDestinationSystem().getId(), destination.getId())))
                 || (middleware != null && !middleware.isActive() && (creating || integration.getMiddlewareSystem() == null
                 || !Objects.equals(integration.getMiddlewareSystem().getId(), middleware.getId())))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Inactive systems cannot be selected; an existing selection may be retained");
+            throw new ApiException(409, "INACTIVE_SYSTEM_SELECTION", "Inactive systems cannot be selected; an existing selection may be retained");
         }
 
         integration.setSourceSystem(source);
@@ -133,7 +132,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional
     public void saveEnvironmentConfigs(Long integrationId, List<EnvironmentConfigRequestDTO> configRequests) {
         Integration integration = integrationRepository.findByIdForUpdate(integrationId)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + integrationId));
 
         List<EnvironmentConfig> oldConfigs = configRepository.findByIntegrationId(integrationId);
         java.util.Set<String> seen = new java.util.HashSet<>();
@@ -147,7 +146,7 @@ public class IntegrationServiceImpl implements IntegrationService {
                 .map(req -> {
                     String configKey = req.getEnvironmentType() + "/" + req.getConfigTarget();
                     if (!seen.add(configKey)) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate environment configuration");
+                        throw new ApiException(400, "DUPLICATE_ENVIRONMENT_CONFIG", "Duplicate environment configuration");
                     }
                     EnvironmentConfig old = oldConfigs.stream()
                             .filter(existing -> existing.getEnvironmentType() == req.getEnvironmentType()
@@ -172,15 +171,13 @@ public class IntegrationServiceImpl implements IntegrationService {
                         }
                     } else {
                         if (req.getAuthCredentials().isEmpty()) {
-                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                    "Credentials cannot be empty; omit to preserve or select NONE to clear");
+                            throw new ApiException(400, "CREDENTIALS_EMPTY", "Credentials cannot be empty; omit to preserve or select NONE to clear");
                         }
                         config.setAuthCredentials(credentialCrypto.encrypt(req.getAuthCredentials(), config));
                     }
                     if (req.getAuthType() != AuthType.NONE && (config.getAuthCredentials() == null
                             || config.getAuthCredentials().isEmpty())) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                "Credentials are required for the selected authentication type");
+                        throw new ApiException(400, "CREDENTIALS_REQUIRED", "Credentials are required for the selected authentication type");
                     }
                     return config;
                 })
@@ -203,7 +200,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional
     public void deleteIntegration(Long id) {
         if (!integrationRepository.existsById(id)) {
-            throw new EntityNotFoundException("Integration not found with id: " + id);
+            throw new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + id);
         }
         integrationRepository.deleteById(id);
     }
@@ -212,7 +209,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional
     public void completeIntegration(Long id) {
         Integration integration = integrationRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + id));
         completionValidator.validate(integration);
         integration.setStatus(IntegrationStatus.COMPLETED);
         integrationRepository.save(integration);
@@ -222,7 +219,7 @@ public class IntegrationServiceImpl implements IntegrationService {
     @Transactional
     public IntegrationResponseDTO confirmIntegrationReview(Long id) {
         Integration integration = integrationRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + id));
         integration.setReviewRequired(false);
         return integrationMapper.toResponse(integrationRepository.save(integration));
     }

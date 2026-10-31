@@ -154,10 +154,14 @@ class IntegrationCompletionTests {
         when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(integration));
 
         assertThatThrownBy(() -> service.completeIntegration(1L))
-                .isInstanceOfSatisfying(IntegrationCompletionException.class, ex ->
-                        assertThat(ex.getDetails()).containsExactly(
-                                "At least one environment configuration is required",
-                                "Required schema is missing: SOURCE_TO_DEST_REQUEST"));
+                .isInstanceOfSatisfying(IntegrationCompletionException.class, ex -> {
+                    assertThat(ex.getDetails()).containsExactly(
+                            "At least one environment configuration is required",
+                            "Required schema is missing: SOURCE_TO_DEST_REQUEST");
+                    assertThat(ex.getViolations()).extracting(com.company.integration_catalog.exception.Violation::code)
+                            .containsExactly("ENVIRONMENT_CONFIG_REQUIRED", "REQUIRED_SCHEMA_MISSING");
+                    assertThat(ex.getViolations().get(1).params()).containsEntry("schemaType", SchemaType.SOURCE_TO_DEST_REQUEST);
+                });
     }
 
     @Test

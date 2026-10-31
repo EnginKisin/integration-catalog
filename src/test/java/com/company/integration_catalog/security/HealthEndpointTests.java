@@ -101,7 +101,7 @@ class HealthEndpointTests {
     @Import(SecurityConfig.class)
     static class TestApplication {
         @Bean AtomicBoolean databaseAvailable() { return new AtomicBoolean(true); }
-        // Simulates the production "db" contributor while exercising real Actuator routing and grouping.
+
         @Bean HealthIndicator dbHealthIndicator(AtomicBoolean available) {
             return () -> (available.get() ? Health.up() : Health.down())
                     .withDetail("database", "private-database-info").build();

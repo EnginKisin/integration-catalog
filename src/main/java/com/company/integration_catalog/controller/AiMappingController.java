@@ -14,7 +14,7 @@ public class AiMappingController {
     private final AiMappingService service;
     @GetMapping("/context") public Context context(@PathVariable Long integrationId) { return service.context(integrationId); }
     @GetMapping("/ai/capabilities") public Capabilities capabilities(@PathVariable Long integrationId) {
-        service.context(integrationId); // Scope availability to an existing integration.
+        service.context(integrationId);
         return service.capabilities();
     }
     @PostMapping("/ai/jobs")

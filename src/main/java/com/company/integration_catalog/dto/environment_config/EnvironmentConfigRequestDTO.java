@@ -35,11 +35,10 @@ import java.util.Map;
         @NotNull(message = "Auth type cannot be null")
         private AuthType authType;
 
-        private Map<String, Object> authCredentials; // Dinamik auth alanları Map olarak gelir
+        private Map<String, Object> authCredentials;
         @PositiveOrZero(message = "Retry count cannot be negative")
         private Integer retryCount;
         @PositiveOrZero(message = "Retry interval cannot be negative")
         private Integer retryIntervalMs;
     }
-
 

@@ -77,7 +77,7 @@ class AiMappingPostgresTests {
             assertThat(jobs.findById(queued.jobId()).orElseThrow().getResult()).isNull();
             assertThatThrownBy(() -> service.result(fixture.integrationId(),queued.jobId()))
                     .isInstanceOfSatisfying(PayloadValidationException.class,ex -> assertThat(ex.getStatus()).isEqualTo(410));
-            // Existing editors still submit a full list. Verify its real JPA cascade behavior and provenance.
+
             var fullList=mappingService.getFieldMappingsByIntegration(fixture.integrationId()).stream().map(mapping ->
                     FieldMappingRequestDTO.builder().sourceSchemaId(mapping.getSourceSchemaId()).targetSchemaId(mapping.getTargetSchemaId())
                             .sourceFieldPath(mapping.getSourceFieldPath()).targetFieldPath(mapping.getTargetFieldPath())

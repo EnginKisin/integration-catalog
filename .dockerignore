@@ -6,6 +6,5 @@
 !src/
 !src/**
 
-# Finder metadata can occur inside the allowed source tree.
 **/.DS_Store
 **/._*

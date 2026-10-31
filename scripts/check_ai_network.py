@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Check the running Ollama container's isolation without printing application secrets."""
 import json
 import subprocess
 
-
 def run(*args):
     return subprocess.check_output(args, text=True).strip()
-
 
 def main():
     container = run("docker", "compose", "--profile", "ai", "ps", "-q", "ollama")
@@ -32,7 +29,6 @@ def main():
                            "--max-time", "5", "http://ollama:11434/api/tags"))
     assert models.get("models"), "Backend can reach Ollama but no model is installed"
     print("Verified: internal networks only, no published ports, cloud disabled, external TCP blocked, backend API reachable.")
-
 
 if __name__ == "__main__":
     main()

@@ -170,33 +170,23 @@ kaydedilebilir ama tamamlanamaz; yanlış mapping akış çifti tamamlamada redd
 
 ## Hata sözleşmesi
 
-Standart uygulama hatası örneği:
+API hataları ortak `ErrorResponse` zarfıyla döner. `code`, güvenli İngilizce
+`message`, `details: string[]`, `violations`, `params` ve `requestId` her hata
+zarfında bulunur. Frontend kullanıcı metinlerini `code` ve `violations[].code`
+üzerinden seçer; açıklama metinlerini ayrıştırmaz. Her istekte `X-Request-ID`,
+429 yanıtlarda pozitif saniye olarak `Retry-After` gönderilir.
 
-```json
-{
-  "timestamp":"2026-10-18T12:00:00",
-  "status":409,
-  "error":"Conflict",
-  "message":"Integration is not ready for completion",
-  "path":"/api/v1/integrations/10/complete",
-  "details":["At least one environment configuration is required"]
-}
-```
+- [Ortak sözleşme, alan hataları ve örnekler](error-codes.md)
+- [Kod, HTTP durumu ve endpoint dizini](error-code-index.md)
+- [Her kod ve bağlam için örnek yanıtları içeren JSON katalog](error-catalog.json)
 
-İçerik doğrulama hataları ayrıca `code` alanı içerir; bütün hatalarda bulunması
-garanti değildir. Boyut aşımı 413 döner. `details` özellikle tamamlama hatalarında bulunur; bütün hatalarda dolu olmasını
-beklemeyin. DTO doğrulaması her alan için ayrı hata map'i sağlamaz. Auth hız
-limiti yanıtı yalnızca `status,error,message` içerebilir; istemci alanları opsiyonel okumalıdır.
-IP hız sınırı 429 yanıtında `Retry-After: 60` gönderir; hesap/amaç bazlı token üretme
-sınırında aynı başlığın varlığı garanti değildir.
+DTO/parametre doğrulaması 400 `VALIDATION_FAILED`; tamamlama engelleri 409
+`INTEGRATION_INCOMPLETE` ve kodlu `violations` listesiyle döner. `details` geriye
+uyumluluk için İngilizce açıklamalar olarak korunur; boş listeler de gönderilir.
+Kimlik doğrulama, yetki, CSRF, framework ve hız sınırı hataları aynı zarfı kullanır.
+Tanınmayan yollar güvenlikte kapalıdır; bilinmeyen URL her zaman 404 dönmeyebilir.
 
-400 geçersiz istek, 401 giriş gerekli/hatalı, 403 yetki/CSRF, 404 kayıt bulunamadı,
-409 iş kuralı, 410 AI sonucu süresi dolmuş, 413 içerik/dosya boyut sınırı,
-422 AI girdi/şema doğrulaması, 429 hız/kuyruk sınırı, 500 beklenmeyen hata,
-503 geçici servis/DB sorunudur.
-Bu eşleme her framework hatasının normalize edildiği garantisi değildir: bazı
-tip dönüşümü/metot hataları genel handler'a düşebilir. Güvenlikte tanımlanmamış
-yollar kapalı olduğundan bilinmeyen URL her zaman 404 dönmeyebilir.
-
-Health yolları `/api/v1` dışında, `/actuator/health` altındadır; yanıtları ve
-200/503 kuralları [health belgesindedir](configuration.md#sağlık-kontrolleri).
+AI işinin başarısız olması, durum sorgusunun başarısız olması değildir:
+GET job durumunda HTTP 200 ile `status=FAILED` ve `errorCode` dönebilir.
+Health yolları `/api/v1` dışında, `/actuator/health` altındadır; kendi sağlık
+zarfını kullanır. [Health sözleşmesi](configuration.md#sağlık-kontrolleri).

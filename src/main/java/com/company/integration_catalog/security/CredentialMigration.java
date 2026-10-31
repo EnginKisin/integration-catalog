@@ -50,7 +50,7 @@ public class CredentialMigration implements ApplicationRunner {
         });
         for (EnvironmentConfig config : configs) {
             if (crypto.encrypted(config.getAuthCredentials())) {
-                // Fail startup with a wrong key or corrupted ciphertext rather than serving broken secrets.
+
                 crypto.decrypt(config.getAuthCredentials(), config);
                 continue;
             }

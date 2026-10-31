@@ -2,6 +2,7 @@ package com.company.integration_catalog.ai;
 
 import com.company.integration_catalog.dto.field_mapping.FieldMappingResponseDTO;
 import com.company.integration_catalog.exception.PayloadValidationException;
+import com.company.integration_catalog.exception.ErrorCode;
 import com.company.integration_catalog.mapper.IntegrationMapper;
 import com.company.integration_catalog.model.entity.*;
 import com.company.integration_catalog.model.enums.*;
@@ -11,7 +12,7 @@ import com.company.integration_catalog.payload.PayloadSchemas;
 import com.company.integration_catalog.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
@@ -67,7 +68,7 @@ public class AiMappingService {
             sameRequest(hash, replay.get().getRequestHash());
             return view(replay.get());
         }
-        provider(); // Configuration check only: no network IO while the aggregate is locked.
+        provider();
         requireRevision(integration, request.expectedContextRevision());
         MappingSchema source = schema(integration, request.sourceSchemaId());
         MappingSchema target = schema(integration, request.targetSchemaId());
@@ -95,7 +96,7 @@ public class AiMappingService {
         int inputBytes=encode(input).getBytes(StandardCharsets.UTF_8).length;
         if (inputBytes > properties.getMaxInputBytes())
             throw error(413,"AI_INPUT_TOO_LARGE","Normalized mapping input exceeds the configured byte limit");
-        // Conservative planning estimate, not a tokenizer. Reserve prompt/schema and output space.
+
         if ((inputBytes+1)/2 + 1536 + properties.getMaxOutputTokens() > properties.getContextTokens())
             throw error(413,"AI_CONTEXT_LIMIT","Input exceeds the context budget; reduce samples/fields or increase AI_CONTEXT_TOKENS");
         if (jobs.countByStatusIn(List.of("QUEUED","RUNNING")) >= properties.getMaxPendingJobs())
@@ -192,12 +193,12 @@ public class AiMappingService {
     }
 
     private Integration locked(Long id) { return integrations.findByIdForUpdate(id)
-            .orElseThrow(() -> new EntityNotFoundException("Integration not found: "+id)); }
+            .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found: "+id)); }
     private AiJob job(Long id,String jobId) { return jobs.findByIdAndIntegrationId(jobId,id)
-            .orElseThrow(() -> new EntityNotFoundException("AI job not found in integration")); }
+            .orElseThrow(() -> new ResourceNotFoundException("AI_JOB_NOT_FOUND", "AI job not found in integration")); }
     private MappingSchema schema(Integration integration,Long id) { return integration.getMappingSchemas().stream()
             .filter(schema -> schema.getId().equals(id)).findFirst()
-            .orElseThrow(() -> new EntityNotFoundException("Schema not found in integration: "+id)); }
+            .orElseThrow(() -> new ResourceNotFoundException("SCHEMA_NOT_FOUND", "Schema not found in integration: "+id)); }
     private boolean sameSchema(MappingSchema source,MappingSchema target) { return source.getId().equals(target.getId()); }
 
     private void requirePair(Integration integration,MappingSchema source,MappingSchema target) {
@@ -218,7 +219,7 @@ public class AiMappingService {
             PayloadSchemas.validateTarget(integration, source);
             if (!sameSchema(source,target)) PayloadSchemas.validateTarget(integration,target);
         } catch (PayloadValidationException ex) {
-            throw error(422,ex.getCode(),ex.getMessage());
+            throw new PayloadValidationException(422, ex.getCode(), ex.getMessage(), ex.getParams());
         }
     }
 
@@ -239,7 +240,9 @@ public class AiMappingService {
     }
     private JobView view(AiJob job) {
         String status=job.getExpiresAt().compareTo(clock.instant())<=0?"EXPIRED":job.getStatus();
-        return new JobView(job.getId(),status,job.getCreatedAt(),job.getExpiresAt(),job.getErrorCode(),job.getErrorMessage(),
+        String errorCode = "EXPIRED".equals(status) ? "AI_RESULT_EXPIRED" : job.getErrorCode();
+        return new JobView(job.getId(),status,job.getCreatedAt(),job.getExpiresAt(),errorCode,
+                errorCode == null ? null : ErrorCode.message(errorCode),
                 "SUCCEEDED".equals(status)?"/api/v1/integrations/"+job.getIntegration().getId()+"/mappings/ai/jobs/"+job.getId()+"/result":null,
                 List.of("QUEUED","RUNNING").contains(status)?2000:null);
     }

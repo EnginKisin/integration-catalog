@@ -202,8 +202,13 @@ class AccountLifecycleTests {
         when(tokens.findFirstByAccountIdAndPurposeOrderByIssuedAtDesc(1L, AccountTokenPurpose.INVITATION)).thenReturn(Optional.of(old));
         service.resendInvitation(1L);
         assertThat(old.getUsedAt()).isEqualTo(NOW); assertThat(account.getSessionVersion()).isEqualTo(1);
-        old.setIssuedAt(NOW);
-        assertThatThrownBy(() -> service.resendInvitation(1L)).isInstanceOf(ResponseStatusException.class);
+        old.setIssuedAt(NOW.minusSeconds(17).minusMillis(100));
+        assertThatThrownBy(() -> service.resendInvitation(1L))
+                .isInstanceOfSatisfying(com.company.integration_catalog.exception.ApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(429);
+                    assertThat(ex.getCode()).isEqualTo("INVITATION_RATE_LIMITED");
+                    assertThat(ex.getRetryAfterSeconds()).isEqualTo(43L);
+                });
     }
 
     @Test void adminResetBlocksOldPasswordUntilResetCompletes() throws Exception {

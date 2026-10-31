@@ -27,7 +27,6 @@ import lombok.AllArgsConstructor;
         @Size(max = 500, message = "Integration description cannot exceed 500 characters")
         private String description;
 
-        // Frontend selectbox'tan seçilen ID'leri gönderecek:
         @NotNull(message = "Source system ID cannot be null")
         @Positive(message = "Source system ID must be greater than zero")
         private Long sourceSystemId;
@@ -36,7 +35,6 @@ import lombok.AllArgsConstructor;
         @Positive(message = "Destination system ID must be greater than zero")
         private Long destinationSystemId;
 
-        // Eğer hasMiddleware true ise dolu gelecek
         @Positive(message = "Middleware system ID must be greater than zero")
         private Long middlewareSystemId;
 

@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 
 class GeminiProviderTests {
     private final ObjectMapper json=new ObjectMapper();
-    private final AiProperties properties=new AiProperties();
+    private final AiProperties properties=AiTestProperties.defaults();
     private final HttpClient client=mock(HttpClient.class);
     private GeminiMappingSuggestionProvider provider;
     private static final String COMPACT="""
@@ -171,6 +171,8 @@ class GeminiProviderTests {
     private void assertCode(org.assertj.core.api.ThrowableAssert.ThrowingCallable action,String code) {
         assertThatThrownBy(action).isInstanceOfSatisfying(PayloadValidationException.class,ex -> {
             assertThat(ex.getCode()).isEqualTo(code);
+            assertThat(com.company.integration_catalog.exception.ErrorCode.values())
+                    .extracting(Enum::name).contains(ex.getCode());
             assertThat(ex.getMessage()).doesNotContain("unit-test-key-only","sensitive upstream","sample values");
         });
     }

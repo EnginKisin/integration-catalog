@@ -23,17 +23,14 @@ public class EnvironmentConfig extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Hangi entegrasyona ait olduğu bağı
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "integration_id", nullable = false)
     private Integration integration;
 
-    // DESTINATION mı MIDDLEWARE mi?
     @Enumerated(EnumType.STRING)
     @Column(name = "config_target", nullable = false)
     private ConfigTarget configTarget;
 
-    // DEV, TEST, PROD
     @Enumerated(EnumType.STRING)
     @Column(name = "environment_type", nullable = false)
     private EnvironmentType environmentType;
@@ -48,16 +45,10 @@ public class EnvironmentConfig extends BaseEntity {
     @Column(name = "auth_type", nullable = false)
     private AuthType authType;
 
-    /**
-     * Encrypted credential envelope, stored as JSONB (format, IV and ciphertext).
-     * Plaintext is only constructed on authorized reveal or before encryption.
-     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "auth_credentials", columnDefinition = "jsonb")
     private Map<String, Object> authCredentials;
 
-    // Yeniden deneme metaverisi; dış isteği çalıştırmaz.
-    
     @Column(name = "retry_count")
     private Integer retryCount;
 

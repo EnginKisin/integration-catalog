@@ -4,7 +4,6 @@ import com.company.integration_catalog.exception.PayloadValidationException;
 import com.company.integration_catalog.model.entity.MappingSchema;
 import java.util.*;
 
-/** Canonical paths are JSON Pointer paths; '*' denotes any element of an array. */
 public final class JsonMappingFields {
     private JsonMappingFields() {}
 
@@ -67,7 +66,7 @@ public final class JsonMappingFields {
         } else if (value instanceof List<?> list) {
             if (list.isEmpty()) add(result, new MappingField(path + "/*", "unknown", true, true, List.of()), limit);
             else {
-                // Union fields across up to three representative elements, preserving nullable/type uncertainty.
+
                 LinkedHashMap<String, MappingField> merged = new LinkedHashMap<>();
                 for (Object item : list.stream().limit(3).toList()) {
                     List<MappingField> child = new ArrayList<>();
@@ -105,7 +104,7 @@ public final class JsonMappingFields {
 
     private static void add(List<MappingField> fields, MappingField field, int limit) {
         if (field.path().length() > 500) throw error("INPUT_TOO_COMPLEX", "JSON field path exceeds 500 characters");
-        if (fields.size() >= limit) throw error("TOO_MANY_FIELDS", "JSON field limit exceeded: " + limit);
+        if (fields.size() >= limit) throw new PayloadValidationException(422, "TOO_MANY_FIELDS", "JSON field limit exceeded", Map.of("maxFields", limit));
         fields.add(field);
     }
     private static String type(Object type) {

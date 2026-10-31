@@ -4,7 +4,7 @@ import com.company.integration_catalog.model.enums.*;
 import com.company.integration_catalog.repository.EnvironmentConfigRepository;
 import com.company.integration_catalog.security.CredentialAccess;
 import com.company.integration_catalog.security.CredentialCrypto;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -25,7 +25,7 @@ public class CredentialService {
     public Map<String, Object> reveal(Long integrationId, EnvironmentType environment, ConfigTarget target) {
         access.require(UserPermission.VIEW_CREDENTIALS);
         var config = configs.findByIntegrationIdAndConfigTargetAndEnvironmentType(integrationId, target, environment)
-                .orElseThrow(() -> new EntityNotFoundException("Environment configuration not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("CONFIG_NOT_FOUND", "Environment configuration not found"));
         Map<String, Object> credentials = crypto.decrypt(config.getAuthCredentials(), config);
         log.info("credential_reveal actor={} integration={} environment={} target={}",
                 SecurityContextHolder.getContext().getAuthentication().getName(), integrationId, environment, target);

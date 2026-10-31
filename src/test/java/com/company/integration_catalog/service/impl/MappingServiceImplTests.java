@@ -79,7 +79,7 @@ class MappingServiceImplTests {
             when(schemaRepository.findByIdAndIntegrationId(10L, 1L))
                     .thenReturn(Optional.of(schema(10L)));
         }
-        // A missing schema and a schema belonging to another integration both return empty.
+
         when(schemaRepository.findByIdAndIntegrationId(unavailableId, 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.saveFieldMappings(1L, List.of(request(10L, 20L))))
@@ -193,7 +193,7 @@ class MappingServiceImplTests {
 
     @Test
     void downloadIsScopedToIntegrationAndReturnsOriginalBytes() {
-        // Downloads use the integration-scoped schema query, without the write lock stub.
+
         reset(integrationRepository);
         byte[] bytes = {1, 2, 3};
         MappingSchema existing = schema(10L);
@@ -223,7 +223,7 @@ class MappingServiceImplTests {
         FieldMapping retained = FieldMapping.builder().sourceSchema(existing).targetSchema(target)
                 .sourceFieldPath("/order/id").targetFieldPath("id").build();
         integration.getFieldMappings().addAll(List.of(
-                // This obsolete link must not block the new XML content with a path conflict.
+
                 FieldMapping.builder().sourceSchema(existing).targetSchema(obsolete)
                         .sourceFieldPath("/order/removed").targetFieldPath("id").build(),
                 FieldMapping.builder().sourceSchema(obsolete).targetSchema(existing)

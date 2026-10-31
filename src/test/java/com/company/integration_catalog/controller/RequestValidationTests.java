@@ -5,7 +5,9 @@ import com.company.integration_catalog.service.MappingService;
 import com.company.integration_catalog.service.SystemService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
+import com.company.integration_catalog.exception.Violation;
+import java.util.Map;
 import com.company.integration_catalog.exception.IntegrationCompletionException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -53,13 +55,15 @@ class RequestValidationTests {
 
     @Test
     void completionReturnsConflictWithAllMissingRequirements() throws Exception {
-        doThrow(new IntegrationCompletionException(List.of("Missing environment", "Missing request schema")))
+        doThrow(new IntegrationCompletionException(List.of("Missing environment", "Missing request schema"),
+                List.of(new Violation(null, "ENVIRONMENT_CONFIG_REQUIRED", Map.of()),
+                        new Violation(null, "REQUIRED_SCHEMA_MISSING", Map.of("schemaType", "SOURCE_TO_DEST_REQUEST")))))
                 .when(integrationService).completeIntegration(1L);
         mvc.perform(patch(BASE + "/complete"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.details[0]").value("Missing environment"))
-                .andExpect(jsonPath("$.details[1]").value("Missing request schema"));
+                .andExpect(jsonPath("$.details[0]").value("At least one environment configuration is required"))
+                .andExpect(jsonPath("$.details[1]").value("A required schema is missing"));
     }
 
     @Test
@@ -79,9 +83,9 @@ class RequestValidationTests {
         String message = system + " not found with id: 30";
         boolean creating = method.equals("POST");
         if (creating) {
-            when(integrationService.createIntegration(any())).thenThrow(new EntityNotFoundException(message));
+            when(integrationService.createIntegration(any())).thenThrow(new ResourceNotFoundException("SYSTEM_NOT_FOUND", message));
         } else {
-            when(integrationService.updateIntegration(eq(1L), any())).thenThrow(new EntityNotFoundException(message));
+            when(integrationService.updateIntegration(eq(1L), any())).thenThrow(new ResourceNotFoundException("SYSTEM_NOT_FOUND", message));
         }
         ObjectNode body = namedRequest("integrations", "Orders")
                 .put("hasMiddleware", true).put("middlewareSystemId", 30L);
@@ -89,7 +93,8 @@ class RequestValidationTests {
                         .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value(message));
+                .andExpect(jsonPath("$.code").value("SYSTEM_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("System was not found"));
     }
 
     static Stream<Arguments> invalidMiddlewareSelections() {
@@ -113,7 +118,8 @@ class RequestValidationTests {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("middlewareSystemId")));
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.violations[*].field", org.hamcrest.Matchers.hasItem("middlewareSystemId")));
         verifyNoInteractions(integrationService);
     }
 

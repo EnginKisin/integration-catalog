@@ -65,6 +65,7 @@ class CredentialSecurityTests {
             result.andExpect(jsonPath("$.authCredentials.apiKey").value("private-value"))
                     .andExpect(header().string("Cache-Control", "no-store"));
         } else {
+            result.andExpect(jsonPath("$.code").value("CREDENTIAL_PERMISSION_REQUIRED"));
             verifyNoInteractions(configs);
         }
     }

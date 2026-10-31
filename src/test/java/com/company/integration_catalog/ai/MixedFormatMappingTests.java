@@ -66,7 +66,7 @@ class MixedFormatMappingTests {
         });
         MappingSuggestionProvider provider=mock(MappingSuggestionProvider.class);
         when(provider.name()).thenReturn("ollama");
-        AiProperties properties=new AiProperties(); properties.setEnabled(true);
+        AiProperties properties=AiTestProperties.defaults(); properties.setEnabled(true);
         ObjectMapper json=new ObjectMapper().findAndRegisterModules();
         AiMappingService service=new AiMappingService(integrations,fields,jobs,mock(MappingAppendReceiptRepository.class),
                 new IntegrationMapper(),json,properties,List.of(provider),Clock.systemUTC());

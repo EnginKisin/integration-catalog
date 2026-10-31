@@ -73,7 +73,7 @@ public final class PayloadSchemas {
         PayloadFormat format = request.getFormat();
         if (format == null) {
             if (upload != null) throw invalid("FORMAT_REQUIRED", "Format is required for file uploads");
-            format = PayloadFormat.JSON; // Existing JSON clients remain compatible.
+            format = PayloadFormat.JSON;
         }
         validateFlow(integration, request.getSchemaType(), format);
         if (request.getSamplePayload() != null && format != PayloadFormat.JSON)
@@ -459,7 +459,7 @@ public final class PayloadSchemas {
 
     private static void checkSize(long size, int maximum) {
         if (size <= 0) throw invalid("EMPTY_CONTENT", "Content must not be empty");
-        if (size > maximum) throw new PayloadValidationException(413, "PAYLOAD_TOO_LARGE", "Content exceeds " + maximum + " bytes");
+        if (size > maximum) throw new PayloadValidationException(413, "PAYLOAD_TOO_LARGE", "Content exceeds " + maximum + " bytes", Map.of("maxBytes", maximum));
     }
 
     private static String safeFileName(String name) {

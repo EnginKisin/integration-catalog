@@ -1,6 +1,7 @@
 package com.company.integration_catalog.ai;
 
 import com.company.integration_catalog.exception.PayloadValidationException;
+import com.company.integration_catalog.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -39,9 +40,9 @@ public class AiMappingWorker {
                     throw new PayloadValidationException(503,"AI_CONFIGURATION_CHANGED","Provider configuration changed; create a new job");
                 transactions.finish(job.id(),mappings.provider().suggest(job.input()),null,null);
             } catch (PayloadValidationException ex) {
-                transactions.finish(job.id(),null,ex.getCode(),ex.getMessage());
+                transactions.finish(job.id(),null,ex.getCode(),ErrorCode.message(ex.getCode()));
             } catch (Exception ex) {
-                // Exceptions from HTTP/model parsers may contain user payloads: log only the job ID.
+
                 log.warn("AI mapping job failed id={}",job.id());
                 transactions.finish(job.id(),null,"AI_INTERNAL_ERROR","Suggestion generation failed; manual mapping is available");
             }

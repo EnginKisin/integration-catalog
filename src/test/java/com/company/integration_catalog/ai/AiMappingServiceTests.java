@@ -23,7 +23,7 @@ class AiMappingServiceTests {
     MappingAppendReceiptRepository receipts=mock(MappingAppendReceiptRepository.class);
     MappingSuggestionProvider provider=mock(MappingSuggestionProvider.class);
     ObjectMapper json=new ObjectMapper().findAndRegisterModules();
-    AiProperties properties=new AiProperties();
+    AiProperties properties=AiTestProperties.defaults();
     Clock clock=Clock.fixed(Instant.parse("2026-10-30T14:00:00Z"),ZoneOffset.UTC);
     Integration integration;
     MappingSchema schema;
@@ -161,6 +161,22 @@ class AiMappingServiceTests {
         assertCode(() -> service.create(1L,"editor","gemini-job",request()),"AI_API_KEY_MISSING");
         assertThat(service.context(1L).schemas()).hasSize(1);
         verify(jobs,never()).save(any()); verify(provider,never()).suggest(any());
+    }
+
+    @Test void pollingUsesSafeEnglishMessagesAndReportsExpiredJobs() {
+        AiJob job = new AiJob();
+        job.setId("job"); job.setIntegration(integration); job.setStatus("FAILED");
+        job.setCreatedAt(clock.instant()); job.setExpiresAt(clock.instant().plusSeconds(60));
+        job.setErrorCode("AI_RATE_LIMITED"); job.setErrorMessage("private legacy provider response");
+        when(jobs.findByIdAndIntegrationId("job", 1L)).thenReturn(Optional.of(job));
+        JobView failed = service.status(1L, "job");
+        assertThat(failed.errorCode()).isEqualTo("AI_RATE_LIMITED");
+        assertThat(failed.message()).isEqualTo("AI provider quota or rate limit was reached");
+        job.setExpiresAt(clock.instant().minusSeconds(1));
+        JobView expired = service.status(1L, "job");
+        assertThat(expired.status()).isEqualTo("EXPIRED");
+        assertThat(expired.errorCode()).isEqualTo("AI_RESULT_EXPIRED");
+        assertThat(expired.message()).isEqualTo("AI result expired; request new suggestions");
     }
 
     private CreateJob request() { return new CreateJob(10L,10L,revision(),List.of(),null); }

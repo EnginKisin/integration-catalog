@@ -52,7 +52,8 @@ class CatalogManagementWebTests {
     @Test void deletionConflictExplainsDistinctIntegrationUsage() throws Exception {
         stub(false, 5);
         mvc.perform(delete("/api/v1/systems/1").with(user("admin").roles("ADMIN")).with(csrf()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("5 integration")));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SYSTEM_IN_USE"))
+                .andExpect(jsonPath("$.params.usageCount").value(5));
         verify(systems, never()).delete(any());
     }
 

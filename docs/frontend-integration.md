@@ -262,26 +262,36 @@ Hesap politikaları ve tam endpoint listesi [kullanıcı yönetimindedir](user-m
 
 ## Hataları ele alma
 
-| HTTP | Frontend davranışı |
-|---|---|
-| 400 | Geçersiz gövde/token; mesajı göster, formu koru |
-| 401 | Giriş gerekli/hatalı; kullanıcıyı girişe yönlendir |
-| 403 | Yetki veya CSRF sorunu olabilir; oturumu/CSRF'yi kontrol et, yazmayı otomatik tekrarlama |
-| 404 | Kayıt yok; listeyi yenile |
-| 409 | İş kuralı veya tamamlama engeli; varsa `details` listesini göster |
-| 410 | AI sonucu süresi dolmuş; kullanıcı isterse yeni öneri işi oluştur |
-| 413 | İçerik/dosya boyut sınırı; boyutu azaltmasını iste, formu koru |
-| 422 | AI girdi/şema/alan doğrulaması; `code` değerine göre kullanıcı girdisini düzelt |
-| 429 | Hız sınırı; varsa `Retry-After` kadar bekle, tekrar tekrar gönderme |
-| 500 / 503 | İşlemin sonucunu kontrol et; güvenli genel hata göster |
+Backend mesajları İngilizcedir. Kullanıcıya gösterilen metni `code` üzerinden,
+alan ve tamamlama hatalarını `violations[].code` + `params` üzerinden yerelleştirin.
+`message` ve `details` güvenli yedek açıklamalardır; davranış belirlemek için
+ayrıştırmayın. Bilinmeyen kodda frontend'in genel hata mesajını kullanın.
 
-Süresi biten oturumda yazma isteği CSRF nedeniyle 403 dönebilir; her 403'ü rol
-eksikliği olarak göstermeyin. Hata gövdelerinin tüm alanları her yanıtta bulunmaz.
-Kullanıcı mesajlarını metin olarak render edin. Entegrasyon PUT ve bütün listeyi
-değiştiren eski config/mapping kayıtları
-ETag/If-Match veya beklenen sürüm almaz; entity sürümlemesi istemcideki eski
-formu korumaya yetmez. AI context/job/append akışı ise `contextRevision` alır;
-eski bağlamla kaydı 409 ile reddeder.
+| HTTP | İstemci davranışı |
+|---|---|
+| 400 | `VALIDATION_FAILED` ise bütün alan ihlallerini ilgili input altında göster; diğer kodlar istek/gövde hatasını belirtir |
+| 401 | `AUTH_REQUIRED`, `INVALID_CREDENTIALS` veya `SESSION_INVALID` koduna göre giriş akışını yönet |
+| 403 | `ACCESS_DENIED`, credential izni ve `CSRF_MISSING`/`CSRF_INVALID` durumlarını ayır |
+| 404 | Kayıt bulunamadı; ilgili kaynağın koduna göre mesaj seç |
+| 409 | İş kuralını kodla göster; `INTEGRATION_INCOMPLETE` için kodlu ihlalleri listele |
+| 410 | AI sonucu süresi dolmuş; yeni öneri iste |
+| 413 | İçerik/bütçe sınırı; ilgili kodu ve varsa limit parametrelerini kullan |
+| 422 | AI veya şema/alan doğrulama koduna göre girdiyi düzelt |
+| 429 | Her zaman gelen `Retry-After` saniyesi kadar bekle; bu süre başarı garantisi değildir |
+| 500 / 503 | Genel hata/geçici servis mesajını göster; destek için `requestId` sakla |
+
+`X-Request-ID` her yanıtta bulunur; HTTP hata gövdesindeki `requestId` aynı
+değerdir. İş durumu HTTP 200 dönse bile AI `status=FAILED`/`EXPIRED` olabilir;
+`errorCode` okunmalıdır. Bu durumda başarılı durum sorgusu için `Retry-After`
+beklenmez; çalışan işler `pollAfterMs` aralığında sorgulanır.
+
+[Ortak hata sözleşmesi](error-codes.md), [tam kod dizini](error-code-index.md)
+ve [örnek yanıt kataloğu](error-catalog.json) istemci için esas kaynaklardır.
+
+Teknik seçim değiştiğinde kullanıcı config/şema/eşlemeyi gözden geçirip incelemeyi
+onaylar; ardından complete çağırır. Eski config/mapping kayıtları ETag/If-Match
+veya beklenen sürüm almaz. AI context/job/append ise eski `contextRevision` ile
+kaydı reddeder.
 
 ## Frontend kabul kontrolleri
 
@@ -291,7 +301,7 @@ eski bağlamla kaydı 409 ile reddeder.
 - Katalog oluşturma/güncelleme, pasif mevcut seçimi koruma ve kullanılan kaydın
   silinememesi ele alınır.
 - Entegrasyon oluşturma → config → şema → isteğe bağlı mapping → tamamlama çalışır;
-  409 `details` listesi gösterilir. Dört akışın zorunlu şema matrisi kontrol edilir.
+  409 kodlu `violations` listesi yerelleştirilerek gösterilir. Dört akışın zorunlu şema matrisi kontrol edilir.
 - Config/field kaydının tüm listeyi değiştirdiği dikkate alınır; tek satır kaydetme
   diğer satırları yanlışlıkla silmez. Maskelenmiş secret gövdeye gönderilmez.
 - XML/IDOC alan ağacı ve yol hataları, CSV/Excel'de eşleme kapatma, multipart

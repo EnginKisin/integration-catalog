@@ -4,7 +4,7 @@ import com.company.integration_catalog.model.entity.UserAccount;
 import com.company.integration_catalog.model.enums.UserPermission;
 import java.util.Set;
 import java.util.HashSet;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
 import com.company.integration_catalog.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,13 +24,13 @@ public class UserAccountService {
 
     @Transactional(readOnly = true)
     public UserAccount profile(String username) {
-        return repository.findByUsername(username).orElseThrow(() -> new EntityNotFoundException("Account not found"));
+        return repository.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException("ACCOUNT_NOT_FOUND", "Account not found"));
     }
 
     @Transactional
     public UserAccount setPermissions(Long id, Set<UserPermission> permissions) {
         UserAccount account = repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("ACCOUNT_NOT_FOUND", "User not found"));
         account.setPermissions(new HashSet<>(permissions));
         account.revokeSessions();
         audit.record(id, "PERMISSIONS_CHANGED");

@@ -13,7 +13,7 @@ class AiMappingWorkerTests {
     private final AiMappingService mappings=mock(AiMappingService.class);
     private final MappingSuggestionProvider gemini=mock(MappingSuggestionProvider.class);
     private final ExecutorService executor=mock(ExecutorService.class);
-    private final AiProperties properties=new AiProperties();
+    private final AiProperties properties=AiTestProperties.defaults();
     private final Input input=new Input(11L,12L,"revision",List.of(),List.of(),List.of());
     private final Suggestions result=new Suggestions(List.of(),List.of(),List.of(),List.of());
     private AiMappingWorker worker;
@@ -34,14 +34,21 @@ class AiMappingWorkerTests {
         when(gemini.suggest(input)).thenThrow(new PayloadValidationException(503,"AI_RATE_LIMITED","Gemini quota reached"));
         worker.poll();
         verify(gemini,times(1)).suggest(input);
-        verify(transactions).finish("job",null,"AI_RATE_LIMITED","Gemini quota reached");
+        verify(transactions).finish("job",null,"AI_RATE_LIMITED","AI provider quota or rate limit was reached");
         verify(mappings,times(1)).provider();
     }
     @Test void queuedOllamaWorkIsNeverSentToGeminiAfterConfigurationChanges() {
         when(transactions.claim()).thenReturn(new AiJobTransactions.Claimed("job","ollama","qwen3.5:4b",input));
         worker.poll();
-        verify(transactions).finish("job",null,"AI_CONFIGURATION_CHANGED","Provider configuration changed; create a new job");
+        verify(transactions).finish("job",null,"AI_CONFIGURATION_CHANGED","AI provider configuration changed; create a new job");
         verify(mappings,never()).provider(); verifyNoInteractions(gemini);
+    }
+    @Test void contentBlocksUseTheCatalogMessageWithoutExposingProviderDetails() {
+        when(gemini.suggest(input)).thenThrow(new PayloadValidationException(503,
+                "AI_CONTENT_BLOCKED", "sensitive upstream explanation"));
+        worker.poll();
+        verify(transactions).finish("job", null, "AI_CONTENT_BLOCKED",
+                "AI provider blocked suggestion generation for this content");
     }
     @Test void unexpectedExceptionsDoNotExposeKeysOrPayloadsInStoredErrors() {
         when(gemini.suggest(input)).thenThrow(new IllegalStateException("secret-key and private sample value"));

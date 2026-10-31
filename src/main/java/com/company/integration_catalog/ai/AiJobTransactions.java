@@ -19,7 +19,7 @@ public class AiJobTransactions {
     @org.springframework.scheduling.annotation.Scheduled(fixedDelayString="${catalog.ai.cleanup-ms:60000}")
     @Transactional
     public void cleanup() {
-        // Keep retention active even when inference is disabled.
+
         jobs.expire(clock.instant());
         jobs.failInterrupted(clock.instant());
     }

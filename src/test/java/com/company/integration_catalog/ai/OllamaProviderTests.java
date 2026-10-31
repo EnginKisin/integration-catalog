@@ -15,7 +15,7 @@ import static org.mockito.Mockito.*;
 
 class OllamaProviderTests {
     ObjectMapper json=new ObjectMapper();
-    AiProperties properties=new AiProperties();
+    AiProperties properties=AiTestProperties.defaults();
     OllamaMappingSuggestionProvider provider=new OllamaMappingSuggestionProvider(properties,json);
     Input input=new Input(10L,20L,"revision",
             List.of(field("/customerCode","string",false),field("/amount","number",false)),

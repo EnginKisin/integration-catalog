@@ -9,8 +9,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
+import com.company.integration_catalog.exception.ApiException;
 
 @Component
 @RequiredArgsConstructor
@@ -30,7 +29,7 @@ public class CredentialAccess {
 
     public void require(UserPermission permission) {
         if (!allowed(SecurityContextHolder.getContext().getAuthentication(), permission)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Credential permission required");
+            throw new ApiException(403, "CREDENTIAL_PERMISSION_REQUIRED", "Credential permission required");
         }
     }
 }

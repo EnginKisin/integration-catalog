@@ -1,11 +1,10 @@
 package com.company.integration_catalog.security;
 
-import com.company.integration_catalog.exception.ErrorResponse;
+import com.company.integration_catalog.exception.ApiErrors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
@@ -19,7 +18,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 
 @Configuration
 public class SecurityConfig {
@@ -32,6 +30,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper mapper, CredentialAccess credentialAccess,
             UserAccountRepository accounts) throws Exception {
         http.authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/liveness",
                                 "/actuator/health/readiness").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
@@ -78,29 +77,35 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/integrations/*/complete").hasAnyRole("ADMIN", "EDITOR")
                         .anyRequest().denyAll())
                 .addFilterAfter(new SessionVersionFilter(accounts, mapper), SecurityContextHolderFilter.class)
-                .addFilterBefore(new AuthRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new AuthRateLimitFilter(mapper), UsernamePasswordAuthenticationFilter.class)
                 .requestCache(cache -> cache.disable())
                 .formLogin(form -> form.loginProcessingUrl("/api/v1/auth/login")
                         .successHandler((request, response, authentication) -> response.setStatus(200))
                         .failureHandler((request, response, exception) ->
-                                error(mapper, request, response, 401, "Unauthorized", "Invalid username or password")))
+                                error(mapper, request, response, 401, "INVALID_CREDENTIALS")))
                 .logout(logout -> logout.logoutUrl("/api/v1/auth/logout")
                         .invalidateHttpSession(true).deleteCookies("JSESSIONID")
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) ->
-                                error(mapper, request, response, 401, "Unauthorized", "Authentication required"))
+                                error(mapper, request, response, 401, Boolean.TRUE.equals(request.getAttribute(SessionVersionFilter.INVALID_SESSION)) ? "SESSION_INVALID" : "AUTH_REQUIRED"))
                         .accessDeniedHandler((request, response, exception) ->
-                                error(mapper, request, response, 403, "Forbidden", "Access denied")));
+                                error(mapper, request, response, 403, deniedCode(request, exception))));
         return http.build();
     }
 
+    private String deniedCode(HttpServletRequest request, org.springframework.security.access.AccessDeniedException exception) {
+        if (exception instanceof org.springframework.security.web.csrf.MissingCsrfTokenException) return "CSRF_MISSING";
+        if (exception instanceof org.springframework.security.web.csrf.CsrfException) return "CSRF_INVALID";
+        String path = request.getServletPath();
+        if (path.isEmpty()) path = request.getRequestURI().substring(request.getContextPath().length());
+        if (request.getMethod().equals("GET") && path.matches("/api/v1/integrations/[^/]+/configs/[^/]+/[^/]+/credentials"))
+            return "CREDENTIAL_PERMISSION_REQUIRED";
+        return "ACCESS_DENIED";
+    }
+
     private void error(ObjectMapper mapper, HttpServletRequest request, HttpServletResponse response,
-                       int status, String error, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        mapper.writeValue(response.getOutputStream(), ErrorResponse.builder()
-                .timestamp(LocalDateTime.now()).status(status).error(error).message(message)
-                .path(request.getRequestURI()).build());
+                       int status, String code) throws IOException {
+        ApiErrors.write(mapper, request, response, status, code, null);
     }
 }

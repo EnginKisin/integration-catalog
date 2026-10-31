@@ -1,6 +1,7 @@
 package com.company.integration_catalog.validation;
 
 import com.company.integration_catalog.exception.IntegrationCompletionException;
+import com.company.integration_catalog.exception.Violation;
 import com.company.integration_catalog.model.entity.*;
 import com.company.integration_catalog.model.enums.*;
 import org.springframework.stereotype.Component;
@@ -14,20 +15,21 @@ public class IntegrationCompletionValidator {
 
     public void validate(Integration integration) {
         List<String> errors = new ArrayList<>();
+        List<Violation> violations = new ArrayList<>();
         if (integration.isReviewRequired()) {
-            errors.add("Review the preserved environment settings, schemas and mappings, then confirm the review before completing");
+            add(errors, violations, "REVIEW_REQUIRED", Map.of(), "Review the preserved environment settings, schemas and mappings, then confirm the review before completing");
         }
         if (blank(integration.getName()) || integration.getDescription() == null
                 || integration.getSourceSystem() == null || integration.getDestinationSystem() == null
                 || integration.getSourcePayloadFormat() == null || integration.getDestinationPayloadFormat() == null
                 || integration.getHasMiddleware() == null || integration.getIsSync() == null) {
-            errors.add("Basic integration information is incomplete");
+            add(errors, violations, "BASIC_INFORMATION_REQUIRED", Map.of(), "Basic integration information is incomplete");
         }
         boolean middleware = Boolean.TRUE.equals(integration.getHasMiddleware());
         if (middleware != (integration.getMiddlewareSystem() != null)) {
-            errors.add("Middleware selection is inconsistent");
+            add(errors, violations, "INVALID_MIDDLEWARE_SELECTION", Map.of(), "Middleware selection is inconsistent");
         }
-        validateConfigs(integration.getEnvironmentConfigs(), middleware, errors);
+        validateConfigs(integration.getEnvironmentConfigs(), middleware, errors, violations);
         Set<SchemaType> required = requiredSchemas(middleware, Boolean.TRUE.equals(integration.getIsSync()));
         Set<SchemaType> allowed = requiredSchemas(middleware, true);
         Map<Long, MappingSchema> schemasById = new HashMap<>();
@@ -37,23 +39,23 @@ public class IntegrationCompletionValidator {
                 schemasById.put(schema.getId(), schema);
             }
             if (schema.getSchemaType() == null || !allowed.contains(schema.getSchemaType())) {
-                errors.add("Schema type is incompatible with the integration flow: " + schema.getSchemaType());
+                add(errors, violations, "INVALID_SCHEMA_TYPE", metadata("schemaType", schema.getSchemaType()), "Schema type is incompatible with the integration flow: " + schema.getSchemaType());
                 continue;
             }
             if (!present.add(schema.getSchemaType())) {
-                errors.add("Duplicate schema type: " + schema.getSchemaType());
+                add(errors, violations, "DUPLICATE_SCHEMA_TYPE", metadata("schemaType", schema.getSchemaType()), "Duplicate schema type: " + schema.getSchemaType());
             }
             try {
                 PayloadSchemas.validateFlow(integration, schema.getSchemaType(), PayloadSchemas.format(schema));
                 PayloadSchemas.validateStored(schema);
                 PayloadSchemas.validateTarget(integration, schema);
             } catch (PayloadValidationException ex) {
-                errors.add(ex.getMessage() + ": " + schema.getSchemaType());
+                add(errors, violations, ex.getCode(), metadata("schemaType", schema.getSchemaType()), ex.getMessage() + ": " + schema.getSchemaType());
             }
         }
         for (SchemaType type : required) {
             if (!present.contains(type)) {
-                errors.add("Required schema is missing: " + type);
+                add(errors, violations, "REQUIRED_SCHEMA_MISSING", Map.of("schemaType", type), "Required schema is missing: " + type);
             }
         }
         for (FieldMapping mapping : integration.getFieldMappings()) {
@@ -63,56 +65,66 @@ public class IntegrationCompletionValidator {
                     : schemasById.get(mapping.getTargetSchema().getId());
             if (source == null || target == null || blank(mapping.getSourceFieldPath())
                     || blank(mapping.getTargetFieldPath()) || !validMappingPair(source, target, middleware)) {
-                errors.add("Field mapping has an invalid schema connection or empty field path: " + mapping.getId());
+                add(errors, violations, "INVALID_MAPPING_CONNECTION", metadata("mappingId", mapping.getId()), "Field mapping has an invalid schema connection or empty field path: " + mapping.getId());
             } else {
                 try {
                     PayloadSchemas.validateMappingPath(source, mapping.getSourceFieldPath());
                     PayloadSchemas.validateMappingPath(target, mapping.getTargetFieldPath(),
                             !middleware && Objects.equals(source.getId(), target.getId()));
                 } catch (PayloadValidationException ex) {
-                    errors.add(ex.getMessage() + ": " + mapping.getId());
+                    add(errors, violations, ex.getCode(), metadata("mappingId", mapping.getId()), ex.getMessage() + ": " + mapping.getId());
                 }
             }
         }
         if (!errors.isEmpty()) {
-            throw new IntegrationCompletionException(errors);
+            throw new IntegrationCompletionException(errors, violations);
         }
     }
 
-    private void validateConfigs(List<EnvironmentConfig> configs, boolean middleware, List<String> errors) {
+    private void add(List<String> errors, List<Violation> violations, String code,
+            Map<String, Object> params, String detail) {
+        errors.add(detail);
+        violations.add(new Violation(null, code, params));
+    }
+
+    private Map<String, Object> metadata(String key, Object value) {
+        return value == null ? Map.of() : Map.of(key, value);
+    }
+
+    private void validateConfigs(List<EnvironmentConfig> configs, boolean middleware, List<String> errors, List<Violation> violations) {
         if (configs.isEmpty()) {
-            errors.add("At least one environment configuration is required");
+            add(errors, violations, "ENVIRONMENT_CONFIG_REQUIRED", Map.of(), "At least one environment configuration is required");
         }
         Map<EnvironmentType, Set<ConfigTarget>> environments = new EnumMap<>(EnvironmentType.class);
         for (EnvironmentConfig config : configs) {
             if (config.getEnvironmentType() == null || config.getConfigTarget() == null) {
-                errors.add("Environment type and configuration target are required");
+                add(errors, violations, "INVALID_ENVIRONMENT_CONFIG", Map.of(), "Environment type and configuration target are required");
                 continue;
             }
             String label = config.getEnvironmentType() + "/" + config.getConfigTarget();
             Set<ConfigTarget> targets = environments.computeIfAbsent(config.getEnvironmentType(),
                     ignored -> EnumSet.noneOf(ConfigTarget.class));
             if (!targets.add(config.getConfigTarget())) {
-                errors.add("Duplicate environment configuration: " + label);
+                add(errors, violations, "DUPLICATE_ENVIRONMENT_CONFIG", Map.of("environment", config.getEnvironmentType(), "target", config.getConfigTarget()), "Duplicate environment configuration: " + label);
             }
             if (!middleware && config.getConfigTarget() == ConfigTarget.MIDDLEWARE) {
-                errors.add("Middleware configuration is incompatible with the integration flow: " + label);
+                add(errors, violations, "MIDDLEWARE_CONFIG_NOT_ALLOWED", Map.of("environment", config.getEnvironmentType()), "Middleware configuration is incompatible with the integration flow: " + label);
             }
             if (blank(config.getUrl()) || config.getAuthType() == null) {
-                errors.add("Environment URL and authentication type are required: " + label);
+                add(errors, violations, "INVALID_ENVIRONMENT_CONFIG", Map.of("environment", config.getEnvironmentType(), "target", config.getConfigTarget()), "Environment URL and authentication type are required: " + label);
             }
             if ((config.getTimeoutMs() != null && config.getTimeoutMs() <= 0)
                     || (config.getRetryCount() != null && config.getRetryCount() < 0)
                     || (config.getRetryIntervalMs() != null && config.getRetryIntervalMs() < 0)) {
-                errors.add("Invalid timeout or retry settings: " + label);
+                add(errors, violations, "INVALID_ENVIRONMENT_CONFIG", Map.of("environment", config.getEnvironmentType(), "target", config.getConfigTarget()), "Invalid timeout or retry settings: " + label);
             }
         }
         environments.forEach((environment, targets) -> {
             if (!targets.contains(ConfigTarget.DESTINATION)) {
-                errors.add("Destination configuration is missing for environment: " + environment);
+                add(errors, violations, "DESTINATION_CONFIG_REQUIRED", Map.of("environment", environment), "Destination configuration is missing for environment: " + environment);
             }
             if (middleware && !targets.contains(ConfigTarget.MIDDLEWARE)) {
-                errors.add("Middleware configuration is missing for environment: " + environment);
+                add(errors, violations, "MIDDLEWARE_CONFIG_REQUIRED", Map.of("environment", environment), "Middleware configuration is missing for environment: " + environment);
             }
         });
     }

@@ -46,6 +46,8 @@ docker compose up -d --build --wait --wait-timeout 180 app
 Compose değişen ayarlarla container'ı yeniden oluşturur. `docker compose restart app`
 mevcut container'ı yeniden başlatır; yeni env değerlerini almaz veya kodu derlemez.
 Backend yeniden başlayınca bellekteki oturumlar kapanır; tekrar giriş gerekir.
+Her istek `X-Request-ID` başlığı alır; hata gövdesi aynı `requestId` değerini taşır.
+Ortak hata logları bu kimlikle aranabilir; AI worker olayları `jobId` ile izlenir.
 DB zaten hazırsa komutlara `--no-deps` eklenerek yalnızca app güncellenebilir.
 
 `.env` Git'e/build context'ine alınmaz; secret'lar image'a yazılmaz, çalışma anında
@@ -89,9 +91,19 @@ mevcut DB değişikliklerinin sınırları aşağıdaki yapılandırma bölümü
 `POSTGRES_*` ve `APP_PORT` Compose değişkenleridir; IDE'deki Spring ayarlarını
 doğrudan değiştirmez. IDE için `SPRING_DATASOURCE_URL`,
 `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` ve gerekirse
-`SERVER_PORT` kullanılır. Kaynak dosyada yerel datasource varsayılanı
-`jdbc:postgresql://localhost:5432/integration_catalog`, `catalog_user` ve
-`catalog_password`'dür; bu geliştirme değerlerini gerçek DB ile eşleştirin.
+`SERVER_PORT` kullanılır. Kaynak dosyada yerel datasource varsayılanları
+`jdbc:postgresql://localhost:5432/integration_catalog` ve `catalog_user`'dır.
+Varsayılan veritabanı parolası yoktur; `SPRING_DATASOURCE_PASSWORD` dışarıdan
+verilmelidir. Compose bunu `.env` içindeki `POSTGRES_PASSWORD` üzerinden sağlar;
+IDE'de `SPRING_DATASOURCE_PASSWORD` ayrıca tanımlanır.
+
+Backend AI varsayılanlarının tek kaynağı `application.properties` dosyasıdır.
+Compose, `.env` veya shell ortamında tanımlı AI değişkenlerini aktarır; tanımlı
+olmayanlar container ortamına eklenmez ve Spring varsayılanı kullanılır.
+Varsayılana dönmek için isteğe bağlı AI değişkeninin satırını kaldırın; boş değer
+atamayın (boş `GEMINI_API_KEY`, anahtar kullanılmadığı anlamına gelir).
+`AiProperties` yalnızca bu değerleri bağlar ve doğrular. Ollama image/RAM/CPU
+gibi container ayarlarının varsayılanları Compose'da kalır.
 
 Spring ayarları environment üzerinden değiştirilebilir. Örneğin
 `SPRING_JPA_SHOW_SQL=false` SQL logunu kapatır. Mevcut `ddl-auto=update` geliştirme
@@ -116,7 +128,8 @@ docker compose --profile mail up -d postgres mailpit
 Compose dosyası app servisini başlatmasanız bile zorunlu değişkenleri ayrıştırır;
 bu nedenle `.env` içinde DB parolası ve anahtar bulunmalıdır.
 
-3. IDE ortamına datasource değerlerini, kalıcı credential anahtarını, ilk açılış
+3. IDE ortamına datasource değerlerini (`SPRING_DATASOURCE_URL`,
+   `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`), kalıcı credential anahtarını, ilk açılış
    admin bilgilerini ve `SMTP_HOST=localhost`, `SMTP_PORT=1025` ayarlarını girin.
    DB URL'sinde host `localhost`, port `.env` içindeki POSTGRES_PORT olmalıdır.
 4. `IntegrationCatalogApplication` sınıfını veya aynı environment ile aşağıdaki komutu çalıştırın:
@@ -232,7 +245,7 @@ sonra migrate bayrağını kapatın. Eski yedeklerdeki açık değerler kendili�
 | Compose DB auth hatası | Volume ilk oluşturulduğundaki parola ile environment eşleşiyor mu? |
 | Login/yazma 403 | Aynı oturum çerezi ve güncel CSRF başlığı; HTTP'de Secure cookie yanlışlıkla açık mı? |
 | Giriş sonrası tekrar 401 | Davet doğrulaması, aktiflik, reset zorunluluğu veya oturum iptali |
-| İstek 409 | Yanıttaki message/details; kullanılan katalog kaydı, pasif seçim veya eksik tamamlama |
+| İstek 409 | `code`, `violations` ve güvenli parametreleri; hata loguyla eşleştirmek için `requestId` |
 | Payload 400 / 409 / 413 | `code` alanı, format/dosya türü/boyutu, mevcut eşleme çatışması; [örnekler](payload-content.md#hatalar) |
 | Posta gelmiyor | Mail profili / SMTP ayarı, ADMIN mail-status, app logları, token'ın süresi |
 | Container unhealthy | Readiness ve DB bağlantısını incele; Compose unhealthy için otomatik restart yapmaz |

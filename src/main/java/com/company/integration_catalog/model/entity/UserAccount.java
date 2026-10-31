@@ -43,7 +43,7 @@ public class UserAccount extends BaseEntity {
     private Long version;
 
     public boolean loginAllowed() {
-        // Existing/bootstrap accounts without an email can link and verify one after login.
+
         return active && !passwordResetRequired && (email == null || emailVerified);
     }
 

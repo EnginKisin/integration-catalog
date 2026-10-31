@@ -6,12 +6,11 @@ import com.company.integration_catalog.model.entity.CatalogSystem;
 import com.company.integration_catalog.repository.SystemRepository;
 import com.company.integration_catalog.repository.IntegrationRepository;
 import com.company.integration_catalog.service.SystemService;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.company.integration_catalog.exception.ApiException;
 
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,7 @@ public class SystemServiceImpl implements SystemService {
     @Transactional(readOnly = true)
     public SystemResponseDTO getSystemById(Long id) {
         CatalogSystem item = systemRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("System not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("SYSTEM_NOT_FOUND", "System not found with id: " + id));
         return response(item, integrationRepository.countBySystemId(id));
     }
 
@@ -71,15 +70,16 @@ public class SystemServiceImpl implements SystemService {
         CatalogSystem item = locked(id);
         long usage = integrationRepository.countBySystemId(id);
         if (usage > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "System is used by " + usage + " integration(s); deactivate it instead");
+            throw new ApiException(409, "SYSTEM_IN_USE",
+                    "System is used by " + usage + " integration(s); deactivate it instead",
+                    Map.of("usageCount", usage), List.of(), null);
         }
         systemRepository.delete(item);
     }
 
     private CatalogSystem locked(Long id) {
         return systemRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new EntityNotFoundException("System not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("SYSTEM_NOT_FOUND", "System not found with id: " + id));
     }
 
     private SystemResponseDTO response(CatalogSystem item, long usageCount) {

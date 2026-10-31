@@ -18,7 +18,7 @@ final class MappingSuggestionProtocol {
             Each target may have ONE source; a source may feed multiple targets. Do not invent or force uncertain matches.
             Omit matches needing calculation, lookup, aggregation or date/unit conversion. Use unmatched reason codes instead.
             IDOC BEGIN/SEGMENT are structural controls, not business identifiers. Avoid unrelated control-to-business mappings.
-            Confidence is HIGH or MEDIUM; omit low-confidence matches. Give each match a Turkish reason of at most 6 words.
+            Confidence is HIGH or MEDIUM; omit low-confidence matches. Give each match an English reason of at most 6 words.
             For unmatched fields output only the field ID and code, no explanation. Empty matches are valid.
             You have no tools or web access. Do not emit reasoning, HTML, markdown, or repeated entries.
             """;
@@ -94,7 +94,7 @@ final class MappingSuggestionProtocol {
             if(candidates.stream().map(item -> item.get("source")).distinct().count()>1) {
                 diagnostics.put(target,"AMBIGUOUS");
                 candidates.forEach(item -> diagnostics.put(item.get("source").toString(),"AMBIGUOUS"));
-                if(warnings.isEmpty()) warnings.add("Bir hedefe birden fazla kaynak önerildi; belirsiz bağlantılar eklenmedi.");
+                if(warnings.isEmpty()) warnings.add("Multiple sources were proposed for one target; ambiguous connections were omitted.");
             } else {
                 Map<String,Object> selected=new LinkedHashMap<>(candidates.getFirst());
                 if(candidates.stream().anyMatch(item -> "MEDIUM".equals(item.get("confidence")))) selected.put("confidence","MEDIUM");
@@ -109,11 +109,11 @@ final class MappingSuggestionProtocol {
         return fields.entrySet().stream().filter(entry -> codes.containsKey(entry.getKey())).map(entry -> {
             String code=codes.get(entry.getKey());
             String reason=switch(code) {
-                case "AMBIGUOUS" -> "Birden fazla olası karşılık var; kullanıcı değerlendirmesi gerekiyor.";
-                case "NO_COMPATIBLE_FIELD" -> "Karşı tarafta uygun bir alan bulunamadı.";
-                case "TYPE_MISMATCH" -> "Alan tipleri doğrudan kopyalama için uyumlu görünmüyor.";
-                case "TRANSFORMATION_REQUIRED" -> "Doğrudan bağlantı yerine dönüşüm veya iş kuralı gerekiyor.";
-                default -> "Güvenilir bir eşleme için yeterli bağlam bulunmuyor.";
+                case "AMBIGUOUS" -> "Multiple matches are possible; user review is required.";
+                case "NO_COMPATIBLE_FIELD" -> "No compatible field was found on the other side.";
+                case "TYPE_MISMATCH" -> "Field types are incompatible with a direct connection.";
+                case "TRANSFORMATION_REQUIRED" -> "A transformation or business rule is required.";
+                default -> "There is insufficient context for a reliable mapping.";
             };
             return Map.<String,Object>of("fieldPath",entry.getValue().path(),"code",code,"reason",reason);
         }).toList();

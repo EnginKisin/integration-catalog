@@ -97,6 +97,7 @@ Tüm rehberler [doküman dizininde](docs/README.md) bulunur.
 |---|---|
 | Oturum ve ekran akışları | [Frontend entegrasyonu](docs/frontend-integration.md) |
 | Endpoint ve doğrulamalar | [API sözleşmesi](docs/api-reference.md) |
+| Hata kodları, alan hataları ve yerelleştirme | [Hata sözleşmesi ve katalog](docs/error-codes.md) |
 | Env, IDE, sorun giderme | [Yapılandırma](docs/configuration.md) |
 | Format ve dosya kuralları | [Payload](docs/payload-content.md) |
 | Veri modeli, üretim sınırları | [Mimari](docs/architecture.md) |
@@ -117,9 +118,11 @@ ayrıca etkinleştirilir. Docker image build'i test çalıştırmaz.
 
 ```sh
 python3 scripts/check_repository.py
+python3 scripts/generate_error_catalog.py --check
 ```
 
-Kontrol, takip edilen dosya adlarını ve yerel Markdown bağlantılarını denetler.
+Kontroller, takip edilen dosya adlarını, yerel Markdown bağlantılarını ve hata
+kataloğunun güncelliğini denetler.
 [CI](.github/workflows/ci.yml), Java 21/PostgreSQL 16 ile tüm testleri çalıştırır ve JAR paketler.
 [Dependabot](.github/dependabot.yml) haftalık bağımlılık kontrolü yapar.
 

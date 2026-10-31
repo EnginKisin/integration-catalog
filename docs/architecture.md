@@ -43,7 +43,8 @@ içindedir. Hata durumunda eski veriler korunur. Sözleşme
 Parolalar PBKDF2 ile hash'lenir; dış sistem bilgileri geri çözülebilir AES-GCM
 şifrelemesiyle korunur. Token doğrulama tablosunda SHA-256 hash vardır; e-posta
 gönderilebilmesi için ham bağlantının şifreli kopyası geçici olarak outbox'ta tutulur.
-Roller ve credential izinleri ayrıdır. Oturum sürümü her korunan istekte güncel
+Roller ve credential izinleri ayrıdır. API hata yanıtları ham exception veya
+SQL metni taşımaz; `requestId` / `X-Request-ID` hata loglarıyla ilişkilendirilir. Oturum sürümü her korunan istekte güncel
 hesapla karşılaştırılır. Ayrıntılar: [güvenlik](authentication.md), [kullanıcı yaşam döngüsü](user-management.md).
 
 ## Posta akışı
@@ -75,7 +76,9 @@ kaynakları doğrulamaya yardımcı olur; uzaktaki Actions sonucu ayrıca izlenm
 - Session ve auth hız limiti instance belleğindedir; dağıtık session/limit kurulmadı.
 - Katalog/entegrasyon listelerinde sayfalama yoktur; büyük veri performansı ayrıca ölçülmelidir.
 - `ddl-auto=update` kullanılır; Flyway/Liquibase ile sürümlü migration henüz yoktur.
-- Bütün framework hataları tek bir ayrıntılı alan hatası biçimine dönüştürülmez.
+- API hataları ortak İngilizce hata zarfına dönüştürülür; alan hataları kodlu
+  `violations` taşır. Actuator sağlık yanıtları kendi biçimindedir.
+  [Hata sözleşmesi](error-codes.md) ve kod kataloğu frontend yerelleştirmesinin temelidir.
 - Frontend bu repoda bulunmaz; hesap sayfaları ve üretim reverse proxy ayrı yapılandırılır.
 - Compose localhost/HTTP geliştirme içindir. Üretimde HTTPS, Secure cookie,
   kısıtlı DB kullanıcısı, izleme/log yönetimi ve aynı anahtarla yedekten dönüş

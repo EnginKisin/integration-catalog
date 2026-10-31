@@ -22,7 +22,9 @@ varsayılandır. AI kullanmayan geliştiricinin model indirmesi gerekmez.
 
 Önce normal kurulumdaki DB, yönetici ve şifreleme ayarlarını hazırlayın.
 Model indirmeden önce `.env` içinde Ollama sağlayıcısını ve yerel modeli seçin;
-kurulum servisi de `AI_MODEL` değerini kullanır. Gemini model adıyla Ollama pull
+kurulum servisi de `AI_MODEL` değerini kullanır. Bu servis backend ayarlarını
+okumaz; model adı açıkça tanımlanmalı ve boş olmamalıdır. Aksi halde açıklayıcı
+hatayla durur. Gemini model adıyla Ollama pull
 çalıştırmayın:
 
 ```dotenv
@@ -69,6 +71,11 @@ Model çalışırken container limiti varsayılan 6 GB RAM ve 4 CPU'dur; Docker 
 backend/DB için de yeterli bellek bırakılmalıdır.
 
 ## Yapılandırma ve sağlayıcılar
+
+Backend varsayılanları `application.properties` içinde tanımlanır; `.env.example`
+bu değerleri örnekler. İsteğe bağlı bir backend AI değişkeni tanımlanmadığında
+varsayılanı kullanılır; varsayılana dönmek için satırı kaldırın, boş bırakmayın.
+Ollama container sınırları ve image seçimi Compose tarafından yönetilir.
 
 | Ayar | Varsayılan | Anlam |
 |---|---|---|
@@ -374,7 +381,7 @@ Sonuç örneği:
       "targetSchemaId": 101,
       "targetFieldPath": "/clientId",
       "confidence": "HIGH",
-      "reason": "İki alan aynı müşteri kodunu temsil ediyor."
+      "reason": "Both fields identify the same customer."
     }
   ],
   "unmatchedSourceFields": [],
@@ -430,6 +437,18 @@ endpoint'e göndermeyin. Değişmeden tekrar gönderilen eski AI bağlantıları
 korunur; yeni manuel bağlantıların AI işareti istemciden kabul edilmez.
 
 ## Hatalar ve iş yaşam döngüsü
+
+API hata mesajları, sabit eşleme açıklamaları ve uyarılar İngilizcedir; modelden
+öneri nedenlerini İngilizce yazması istenir. Frontend kodlara göre yerelleştirir.
+[Ortak hata sözleşmesi](error-codes.md), [endpoint/kod dizini](error-code-index.md)
+ve [her kod için örnekler](error-catalog.json) normal HTTP hataları, iş `errorCode`
+alanı ve capability `code` alanını aynı katalogda açıklar.
+
+HTTP 429 `AI_QUEUE_FULL`, `Retry-After: 5` ile döner; süre kuyruk için bir
+öneridir. Sağlayıcı kota hatası işte `AI_RATE_LIMITED` olur; GET durum sorgusu
+HTTP 200 dönebilir ve `Retry-After` taşımaz. Süresi dolan işin durumunda
+`errorCode=AI_RESULT_EXPIRED` bulunur. HTTP hatalarında `requestId`, bütün
+yanıtlarda `X-Request-ID`; kalıcı AI işlemi için `jobId` kullanılır.
 
 | HTTP / durum | Kodlar / davranış |
 |---|---|

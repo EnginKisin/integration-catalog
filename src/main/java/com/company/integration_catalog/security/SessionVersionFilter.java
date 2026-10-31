@@ -1,7 +1,7 @@
 package com.company.integration_catalog.security;
 
 import com.company.integration_catalog.repository.UserAccountRepository;
-import com.company.integration_catalog.exception.ErrorResponse;
+import com.company.integration_catalog.exception.ApiErrors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
@@ -9,10 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
-import java.time.LocalDateTime;
 
 @RequiredArgsConstructor
 public class SessionVersionFilter extends OncePerRequestFilter {
+    public static final String INVALID_SESSION = SessionVersionFilter.class.getName() + ".invalidSession";
     private final UserAccountRepository accounts;
     private final ObjectMapper mapper;
 
@@ -33,14 +33,11 @@ public class SessionVersionFilter extends OncePerRequestFilter {
                 valid = accounts.findById(principal.getAccountId()).map(account -> account.loginAllowed()
                         && account.getSessionVersion() == principal.getSessionVersion()).orElse(false);
             } catch (RuntimeException ex) {
-                response.setStatus(503);
-                response.setContentType("application/json");
-                mapper.writeValue(response.getOutputStream(), ErrorResponse.builder().timestamp(LocalDateTime.now())
-                        .status(503).error("Service Unavailable").message("Account verification unavailable")
-                        .path(request.getRequestURI()).build());
+                ApiErrors.write(mapper, request, response, 503, "ACCOUNT_VERIFICATION_UNAVAILABLE", null);
                 return;
             }
             if (!valid) {
+                request.setAttribute(INVALID_SESSION, true);
                 if (request.getSession(false) != null) request.getSession(false).invalidate();
                 SecurityContextHolder.clearContext();
             }

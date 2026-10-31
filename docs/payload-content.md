@@ -282,34 +282,27 @@ kayıtları isteğe bağlıdır; bulunuyorlarsa yine doğrulanır.
 
 ## Hatalar
 
-Mevcut hata zarfına içerik hataları için `code` eklenir:
+Payload hataları da ortak API hata zarfını kullanır. `code`, güvenli İngilizce
+`message`, `details`, `violations`, `params` ve `requestId` her HTTP hata yanıtında
+bulunur. DTO/JSON okuma ve auth hataları da bu sözleşmeye dahildir.
 
-```json
-{
-  "timestamp":"2026-10-25T20:00:00",
-  "status":400,
-  "error":"Bad Request",
-  "code":"INVALID_XML",
-  "message":"Malformed or unsupported XML at line 1, column 8",
-  "path":"/api/v1/integrations/10/mappings/schemas"
-}
-```
+| Örnek hata | HTTP | `code` |
+|---|---|---|
+| Geçersiz XML / IDOC | 400 | `INVALID_XML` / `INVALID_IDOC` |
+| Geçersiz CSV / Excel | 400 | `INVALID_CSV` / `INVALID_EXCEL` |
+| Format/akış uyuşmazlığı | 400 | `FORMAT_MISMATCH` |
+| Desteklenmeyen alan eşlemesi | 400 | `MAPPING_NOT_SUPPORTED` |
+| Boyut aşımı | 413 | `PAYLOAD_TOO_LARGE`; içerik kontrolünde `params.maxBytes` bulunabilir |
+| Şema değişikliği mevcut eşlemeyi bozuyor | 409 | `SCHEMA_MAPPING_CONFLICT` |
+| JSON alan ağacı fazla büyük/karmaşık | 422 | `TOO_MANY_FIELDS` / `INPUT_TOO_COMPLEX` |
 
-Her format için bu zarfın `code`/`message` değerleri:
+Aynı içerik kontrolü AI girdisinde 422, tamamlama sırasında ise 409
+`INTEGRATION_INCOMPLETE` altındaki bir ihlal olabilir. Tamamlama `details`
+listesini İngilizce yedek açıklama olarak korur; kullanıcı metinleri kodlu
+`violations` üzerinden seçilir. Parse hataları ham parser/exception metnini döndürmez.
 
-| Örnek hata | HTTP | `code` | Örnek `message` |
-|---|---|---|---|
-| JSON nesnesi verilmemiş | 400 | `INVALID_JSON` | `Schema definition must be a JSON object` |
-| Bozuk XML | 400 | `INVALID_XML` | `Malformed or unsupported XML at line 1, column 8` |
-| IDOC elemanı olmayan XML | 400 | `INVALID_IDOC` | `IDOC XML must contain an IDOC element` |
-| Eksik CSV sütunu | 400 | `INVALID_CSV` | `Inconsistent column count at record 2` |
-| Sahte/şifreli Excel dosyası | 400 | `INVALID_EXCEL` | `A readable, unencrypted .xls or .xlsx workbook is required` |
-| UTF-8 olmayan dosya | 400 | `INVALID_ENCODING` | `Only UTF-8 text files are supported` |
-| Boyut aşımı | 413 | `PAYLOAD_TOO_LARGE` | `Content exceeds 1048576 bytes` |
-| Yanlış akış formatı | 400 | `FORMAT_MISMATCH` | `Expected CSV for SOURCE_TO_DEST_REQUEST` |
-
-DTO/JSON gövde okuma ve auth hatalarının hepsinde `code` bulunması garanti değildir.
-Tamamlama başarısızlığı mevcut 409 zarfında `details` listesiyle döner.
+[Hata sözleşmesi](error-codes.md), [tam kod/endpoint dizini](error-code-index.md)
+ve [örnek yanıtlar](error-catalog.json).
 
 ## Veritabanı geçişi ve test
 

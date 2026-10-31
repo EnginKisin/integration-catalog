@@ -84,7 +84,7 @@ public class CredentialCrypto {
             return mapper.readValue(cipher.doFinal(Base64.getDecoder().decode((String) stored.get("ciphertext"))),
                     new TypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
-            // Do not include decrypted data, key material or parser error contents in exceptions.
+
             throw new IllegalStateException("Credential decryption failed");
         }
     }

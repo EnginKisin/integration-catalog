@@ -13,7 +13,7 @@ import com.company.integration_catalog.repository.FieldMappingRepository;
 import com.company.integration_catalog.repository.IntegrationRepository;
 import com.company.integration_catalog.repository.MappingSchemaRepository;
 import com.company.integration_catalog.service.MappingService;
-import jakarta.persistence.EntityNotFoundException;
+import com.company.integration_catalog.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,7 +49,7 @@ public class MappingServiceImpl implements MappingService {
 
     private MappingSchemaResponseDTO storeSchema(Long integrationId, MappingSchemaRequestDTO request, MultipartFile file) {
         Integration integration = integrationRepository.findByIdForUpdate(integrationId)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + integrationId));
 
         MappingSchema replacement = PayloadSchemas.prepare(integration, request, file);
         boolean middleware = Boolean.TRUE.equals(integration.getHasMiddleware());
@@ -135,7 +135,7 @@ public class MappingServiceImpl implements MappingService {
     @Transactional(readOnly = true)
     public List<MappingSchemaResponseDTO> getSchemasByIntegration(Long integrationId) {
         if (!integrationRepository.existsById(integrationId)) {
-            throw new EntityNotFoundException("Integration not found with id: " + integrationId);
+            throw new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + integrationId);
         }
         return schemaRepository.findByIntegrationId(integrationId).stream()
                 .map(mapper::toSchemaResponse)
@@ -146,8 +146,8 @@ public class MappingServiceImpl implements MappingService {
     @Transactional(readOnly = true)
     public SampleFile getSampleFile(Long integrationId, Long schemaId) {
         MappingSchema schema = schemaRepository.findByIdAndIntegrationId(schemaId, integrationId)
-                .orElseThrow(() -> new EntityNotFoundException("Schema not found in integration: " + integrationId));
-        if (schema.getSampleFile() == null) throw new EntityNotFoundException("No sample file for schema: " + schemaId);
+                .orElseThrow(() -> new ResourceNotFoundException("SCHEMA_NOT_FOUND", "Schema not found in integration: " + integrationId));
+        if (schema.getSampleFile() == null) throw new ResourceNotFoundException("SAMPLE_FILE_NOT_FOUND", "No sample file for schema: " + schemaId);
         return new SampleFile(schema.getFileName(), schema.getContentType(), schema.getSampleFile());
     }
 
@@ -155,14 +155,14 @@ public class MappingServiceImpl implements MappingService {
     @Transactional
     public void saveFieldMappings(Long integrationId, List<FieldMappingRequestDTO> mappingRequests) {
         Integration integration = integrationRepository.findByIdForUpdate(integrationId)
-                .orElseThrow(() -> new EntityNotFoundException("Integration not found with id: " + integrationId));
+                .orElseThrow(() -> new ResourceNotFoundException("INTEGRATION_NOT_FOUND", "Integration not found with id: " + integrationId));
 
         List<FieldMapping> newMappings = mappingRequests.stream().map(req -> {
             MappingSchema sourceSchema = schemaRepository.findByIdAndIntegrationId(req.getSourceSchemaId(), integrationId)
-                    .orElseThrow(() -> new EntityNotFoundException("Source schema not found in integration: " + integrationId));
+                    .orElseThrow(() -> new ResourceNotFoundException("SCHEMA_NOT_FOUND", "Source schema not found in integration: " + integrationId));
 
             MappingSchema targetSchema = schemaRepository.findByIdAndIntegrationId(req.getTargetSchemaId(), integrationId)
-                    .orElseThrow(() -> new EntityNotFoundException("Target schema not found in integration: " + integrationId));
+                    .orElseThrow(() -> new ResourceNotFoundException("SCHEMA_NOT_FOUND", "Target schema not found in integration: " + integrationId));
 
             PayloadSchemas.validateMappingPath(sourceSchema, req.getSourceFieldPath());
             PayloadSchemas.validateMappingPath(targetSchema, req.getTargetFieldPath(),
@@ -196,7 +196,7 @@ public class MappingServiceImpl implements MappingService {
     @Transactional(readOnly = true)
     public List<FieldMappingResponseDTO> getFieldMappingsByIntegration(Long integrationId) {
         return fieldMappingRepository.findByIntegrationId(integrationId).stream()
-                .map(mapper::toMappingResponse) // Mapper içindeki field mapping dönüşümünü çağırır
+                .map(mapper::toMappingResponse)
                 .collect(Collectors.toList());
     }
 }

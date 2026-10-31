@@ -8,6 +8,7 @@ Kod veya API değiştiğinde ilgili belge aynı değişiklikte güncellenmelidir
 | Belge | İçerik |
 |---|---|
 | [Yapılandırma ve işletim](configuration.md) | Docker, env değişiklikleri, IDE, health, volume ve sorun giderme |
+| [Hata sözleşmesi ve katalog](error-codes.md) | İngilizce hata zarfı, kod/endpoint dizini, alan ihlalleri, requestId, 429 ve AI iş hataları |
 | [API sözleşmesi](api-reference.md) | Bütün controller endpoint'leri, yanıtlar, enum'lar ve doğrulamalar |
 | [Frontend entegrasyonu](frontend-integration.md) | Ayrı proje/proxy, oturum/CSRF yardımcısı, ekran akışları ve kabul kontrolleri |
 | [Ortak sistem kataloğu](systems-frontend.md) | Sistem CRUD/aktiflik/kullanım, entegrasyon seçimleri, harita ve ortam filtresi |

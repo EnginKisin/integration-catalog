@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.*;
 
 class MappingSuggestionProtocolTests {
     private final ObjectMapper json=new ObjectMapper();
-    private final OllamaMappingSuggestionProvider provider=new OllamaMappingSuggestionProvider(new AiProperties(),json);
+    private final OllamaMappingSuggestionProvider provider=new OllamaMappingSuggestionProvider(AiTestProperties.defaults(),json);
 
     @ParameterizedTest
     @CsvSource({"JSON,JSON","JSON,XML","JSON,IDOC","XML,JSON","XML,XML","XML,IDOC","IDOC,JSON","IDOC,XML","IDOC,IDOC"})
@@ -85,7 +85,7 @@ class MappingSuggestionProtocolTests {
         assertThat(result.unmatchedTargetFields()).filteredOn(item -> item.fieldPath().equals("/clientId"))
                 .singleElement().satisfies(item -> {
                     assertThat(item.code()).isEqualTo("TRANSFORMATION_REQUIRED");
-                    assertThat(item.reason()).contains("dönüşüm");
+                    assertThat(item.reason()).contains("transformation");
                 });
         ((com.fasterxml.jackson.databind.node.ObjectNode)compact.path("unmatched").get(0)).put("code","INVENTED");
         assertThatThrownBy(() -> protocol.expand(compact,json)).isInstanceOf(PayloadValidationException.class);

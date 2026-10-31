@@ -27,10 +27,10 @@ final class MappingSuggestionValidator {
             Confidence confidence;
             try { confidence=Confidence.valueOf(band); } catch (IllegalArgumentException ex) { throw invalidOutput(); }
             if (protectedTargets.contains(b)) {
-                addWarning(warnings,"Mevcut veya korunmuş bağlantıyla çakışan bir öneri çıkarıldı."); continue;
+                addWarning(warnings,"A suggestion conflicting with an existing or protected connection was removed."); continue;
             }
             if (!compatible(source.get(a),target.get(b))) {
-                addWarning(warnings,"Tip veya dizi yapısı dönüşümü gerektiren bir öneri çıkarıldı."); continue;
+                addWarning(warnings,"A suggestion requiring type or array conversion was removed."); continue;
             }
             suggestions.add(new Suggestion(UUID.randomUUID().toString(),input.sourceSchemaId(),a,
                     input.targetSchemaId(),b,confidence,reason));
@@ -57,7 +57,7 @@ final class MappingSuggestionValidator {
         }
         return fields.keySet().stream().filter(path -> !used.contains(path)).sorted()
                 .map(path -> explained.getOrDefault(path,new UnmatchedField(path,"NO_CONFIDENT_MATCH",
-                        "Yeterli güvenle uygun bir karşılık belirlenemedi."))).toList();
+                        "No match could be identified with sufficient confidence."))).toList();
     }
 
     private boolean compatible(MappingField source,MappingField target) {

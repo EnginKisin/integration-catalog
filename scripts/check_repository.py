@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Check publishable file hygiene and local Markdown file links; no secret values are read."""
 
 from pathlib import Path
 import re
 import subprocess
 import sys
 from urllib.parse import unquote, urlsplit
-
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
@@ -38,7 +36,6 @@ def main() -> int:
         return 1
     print(f"Repository hygiene OK; local file links checked in {len(documents)} Markdown documents.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
