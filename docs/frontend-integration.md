@@ -74,7 +74,11 @@ still need CSRF.
 
 Anonymous invitation/password-reset/email-verification POST requests also need
 CSRF. JavaScript cannot read the HttpOnly cookie. The idle timeout is 30 minutes.
-Users must log in again after a server restart or account session invalidation.
+Sessions are stored in PostgreSQL; an unexpired session can survive a backend
+restart while the browser retains its cookie. The initial switch from in-memory
+sessions requires a new login, as does account session invalidation. The
+`JSESSIONID` cookie and all endpoints/request formats stay the same; no frontend
+code changes are required for JDBC session storage.
 
 This TypeScript example uses the same origin/proxy. It does not parse empty
 success responses as JSON or automatically retry failed writes:

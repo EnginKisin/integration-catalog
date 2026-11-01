@@ -44,8 +44,9 @@ docker compose up -d --build --wait --wait-timeout 180 app
 
 Compose recreates the container with the updated settings. `docker compose restart app`
 only restarts the existing container; it does not load new environment values or
-build code. Restarting the backend clears in-memory sessions, so users must log in
-again. Each request gets `X-Request-ID`; the error body repeats it as `requestId`.
+build code. Sessions are stored in PostgreSQL; unexpired sessions can survive a
+backend restart with compatible application versions and the same browser cookie.
+Each request gets `X-Request-ID`; the error body repeats it as `requestId`.
 Use this ID to find common error logs. Track AI worker events by `jobId`.
 If the database is already ready, add `--no-deps` to update only the app.
 
@@ -65,7 +66,7 @@ way to stop services.
 This release has no migration from the old separate source/target/middleware
 catalogs to shared `systems`. You can start with an empty database. An old database
 with saved data needs a separate migration. New databases get their schema from
-entities. The configuration section below explains the limits for existing databases.
+Flyway migrations. The configuration section below explains the initial transition.
 
 ## Environment variables
 
@@ -114,6 +115,13 @@ reset; see [database migrations](database-migrations.md) for local reset command
 and the process for adding new migrations, including enum CHECK constraints.
 `CATALOG_CREDENTIALS_MIGRATE` encrypts old credential content only. It does not
 manage table or column migrations.
+
+Spring Session JDBC shares this datasource and stores sessions in `SPRING_SESSION`
+and `SPRING_SESSION_ATTRIBUTES`, created by Flyway V2. Schema initialization by
+Spring Session is disabled. The existing 30-minute servlet idle timeout and
+`JSESSIONID` cookie settings also apply to JDBC sessions. No Redis or additional
+environment variable is required. See [shared JDBC sessions](authentication.md#shared-jdbc-sessions)
+for restarts, independent installations, cleanup, and deployment compatibility.
 
 ## Running from an IDE
 

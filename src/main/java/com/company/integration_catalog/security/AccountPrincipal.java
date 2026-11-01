@@ -3,9 +3,13 @@ package com.company.integration_catalog.security;
 import com.company.integration_catalog.model.entity.UserAccount;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import java.io.Serial;
 import java.util.List;
 
 public class AccountPrincipal extends User {
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     private final Long accountId;
     private final long sessionVersion;
 

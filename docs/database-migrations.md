@@ -14,6 +14,12 @@ indexes, enum CHECK constraints, and JSONB/TEXT/BYTEA columns. Flyway records
 applied migrations and their checksums in `flyway_schema_history`. On later
 starts, it validates that history and applies only pending migrations.
 
+`V2__create_session_tables.sql` adds the Spring Session JDBC tables. A database
+already managed by Flyway at V1 applies V2 automatically without resetting data.
+Only the original transition from an unmanaged Hibernate schema requires the
+empty-database setup below. Session schema initialization outside Flyway is
+disabled; see [session storage](authentication.md#shared-jdbc-sessions).
+
 Start with an **empty database**. The first administrator is created afterward
 using the bootstrap settings described in [authentication](authentication.md#first-administrator).
 An existing database previously managed by Hibernate must be reset for this
@@ -40,7 +46,7 @@ application database/schema using that instance's administration tools.
 
 ## Changing the schema
 
-1. Add a new SQL file, for example `V2__add_customer_reference.sql`, under
+1. Add a new SQL file, for example `V3__add_customer_reference.sql`, under
    `src/main/resources/db/migration`. Use the next unused version and two
    underscores between the version and description.
 2. Include the required DDL and any data updates. For example, populate existing
@@ -74,6 +80,7 @@ See [PostgreSQL test setup](payload-content.md#database-upgrades-and-tests).
 The opt-in `FlywayMigrationPostgresTests` creates isolated schemas to check clean
 installation, migration history, a second migration run with no changes, retained
 rows across that second run, and rejection of a nonempty unmanaged schema.
+It also checks upgrading from V1 to V2 while keeping existing catalog rows.
 The application startup and existing PostgreSQL roundtrip tests run the same
 migrations followed by Hibernate validation. CI enables all PostgreSQL tests.
 

@@ -315,6 +315,8 @@ a format mismatch until content is uploaded again in the correct format.
 
 The normal test command is in the README. Real JSONB/TEXT/BYTEA storage, flow
 cleanup, AI jobs, and system catalog tests are opt-in and skipped by default.
+Session sharing tests are included in the same opt-in group and use isolated
+schemas with two HTTP backends; see [session storage](authentication.md#shared-jdbc-sessions).
 Create a **separate, empty PostgreSQL test database** and a `catalog_payload_test`
 user with access only to that database. The test password is
 `payload-test-only-password`; do not use it in production. Then run:

@@ -18,8 +18,10 @@ regardless of their role.
 A user account can have several token records. Accounts are stored in
 `user_accounts`, extra permissions in `user_permissions`, single-use tokens in
 `account_tokens`, account audit records in `account_audit`, and encrypted email
-jobs in `mail_outbox`. Use the model classes as the source for physical table
-and column details generated from entity names.
+jobs in `mail_outbox`. Spring Session JDBC stores sessions and serialized
+attributes in `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES`. Flyway migrations
+define physical tables, columns, indexes, and constraints; entity mappings are
+validated against that schema.
 
 ## Consistency and security
 
@@ -48,6 +50,11 @@ exceptions or SQL. `requestId` / `X-Request-ID` connects errors to log entries.
 Every protected request compares its session version with the current account.
 Details: [security](authentication.md), [user lifecycle](user-management.md).
 
+Spring Session JDBC stores authentication and CSRF state in PostgreSQL. Compatible
+instances on the same database/schema share sessions, which can survive backend
+restarts until idle expiration or account invalidation. Session tables are managed
+by Flyway V2; see [shared JDBC sessions](authentication.md#shared-jdbc-sessions).
+
 ## Email workflow
 
 A 202/201 response does not wait for SMTP delivery. If a worker stops after SMTP
@@ -73,8 +80,9 @@ validate local source files. Check remote Actions results separately.
 - There is no single-schema delete endpoint.
 - Credential maps have no required-key contract for each authentication type.
 - Revealing secrets has no password recheck, MFA, or persistent database audit endpoint.
-- Sessions and authentication rate limits are held in instance memory. Shared
-  session storage and distributed rate limits are not configured.
+- Authentication rate limits remain in instance memory. JDBC sessions are shared,
+  but distributed rate limits and full multi-instance production acceptance are
+  not configured.
 - Catalog/integration lists have no pagination. Performance with large data needs testing.
 - Flyway manages versioned schema changes; Hibernate uses `ddl-auto=validate`.
   The initial migration requires an empty database; see [database migrations](database-migrations.md).
@@ -96,6 +104,7 @@ validate local source files. Check remote Actions results separately.
 | Group | What it checks |
 |---|---|
 | FlywayMigrationPostgresTests (opt-in) | Fresh schema, history validation, no migration replay, and rejection of an unmanaged nonempty schema |
+| SessionPostgresTests (opt-in) | Two HTTP backends share authentication/CSRF; cookie contract, login ID rotation, restart persistence, logout, expiration/cleanup, and account invalidation |
 | IntegrationServiceImpl / MappingServiceImpl tests | Updates, schema ownership, and full-list saves |
 | PayloadSchemas / PayloadWeb tests | XML/IDOC field trees, CSV/Excel files, size/format/access checks, and mapping restrictions |
 | PayloadPostgresTests (opt-in) | Real PostgreSQL JSONB/TEXT/BYTEA save/read and create/update behavior; [run instructions](payload-content.md#database-upgrades-and-tests) |
@@ -116,11 +125,12 @@ validate local source files. Check remote Actions results separately.
 for five formats on real PostgreSQL. Test transactions roll back.
 `MappingFlowPostgresTests` checks commits and rollback after cleanup errors in
 separate transactions and removes its own test records. Enable these classes,
-`SystemCatalogPostgresTests`, and `AiMappingPostgresTests` with
+`SystemCatalogPostgresTests`, `SessionPostgresTests`, and `AiMappingPostgresTests` with
 `catalog.payload.postgres-test=true`.
 
 These tests do not cover concurrent account/catalog locks, deleting every related
-data type together, schema upgrades from old releases, or real SMTP delivery.
+data type together, general schema upgrades from old releases, or real SMTP delivery.
+The Flyway tests cover the V1-to-V2 session table upgrade specifically.
 A separate database test checks that deleting an integration removes its related
 AI/mapping records. Credential conversion tests mock JDBC calls. HTTP security
 tests use real filters. `RequestValidationTests` disables security filters to test

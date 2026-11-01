@@ -12,7 +12,7 @@ This repository contains the portal's REST API backend. The frontend is a separa
 project. The API manages integrations, environment settings, encrypted credentials,
 user invitations, and roles.
 
-**Technologies:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Data JPA · PostgreSQL · Flyway
+**Technologies:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Session JDBC · Spring Data JPA · PostgreSQL · Flyway
 
 ## Main workflows
 
@@ -78,6 +78,11 @@ Flyway creates the schema on an empty database and applies new migrations on
 later starts; Hibernate validates entity compatibility. Existing databases from
 the former Hibernate `update` setup must be reset for this transition.
 See [database migrations and the local reset commands](docs/database-migrations.md).
+
+Sessions are stored in PostgreSQL through Spring Session JDBC. No extra service
+is required. Compatible backend instances using the same database/schema share
+sessions; unexpired sessions also survive a backend restart. The existing
+`JSESSIONID` cookie and login/CSRF API remain unchanged. See [session storage](docs/authentication.md#shared-jdbc-sessions).
 
 ### 3. Connect to the API
 

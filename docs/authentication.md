@@ -64,10 +64,53 @@ case-sensitive; emails are stored in lowercase.
 The session cookie is HttpOnly and SameSite=Lax, with a 30-minute idle timeout.
 The frontend must use the same origin; use a development proxy locally. The
 backend has no CORS setup for separate origins. Set `SESSION_COOKIE_SECURE=true`
-for HTTPS. It defaults to false for local HTTP. Sessions are held in application
-memory and are lost on restart. Password, email, role, credential permission, and
+for HTTPS. It defaults to false for local HTTP. Spring Session JDBC stores
+sessions in PostgreSQL. Password, email, role, credential permission, and
 active-state changes increase the session version. A database check rejects old
 sessions on the next request.
+
+## Shared JDBC sessions
+
+Spring Session JDBC uses the application's existing datasource. Flyway applies
+`V2__create_session_tables.sql`, which creates `SPRING_SESSION` and
+`SPRING_SESSION_ATTRIBUTES` with the standard PostgreSQL schema, indexes, and
+attribute-delete cascade. `spring.session.jdbc.initialize-schema=never` keeps
+Flyway as the only schema initializer. V1 is unchanged; a database already at V1
+upgrades automatically without a reset.
+
+The browser still receives an HttpOnly `JSESSIONID` cookie and follows the same
+login, CSRF refresh, write, and logout sequence above. The cookie is opaque to the
+frontend; no frontend code change is needed. Session fixation protection rotates
+the ID on login. Logout invalidates the database session and expires the cookie.
+
+Compatible backend instances pointed at the same database/schema can read the
+same authentication and CSRF session attributes. They must use compatible
+application/security versions and consistent cookie settings. Separate
+installations use separate databases/schemas and do not share sessions.
+
+The first rollout from in-memory sessions requires a new login. Afterward, a
+backend restart preserves unexpired sessions while PostgreSQL retains the rows
+and the browser retains its cookie. This does not make the cookie persistent
+across browser restarts or bypass account revocation. Incompatible changes to
+serialized session attributes or security dependencies may require a new login.
+`AccountPrincipal` has an explicit serialization version for compatible changes.
+
+The default idle timeout remains 30 minutes, inherited from
+`server.servlet.session.timeout`. Expired sessions are rejected on access;
+Spring Session periodically deletes expired rows and their attributes. Physical
+cleanup can happen after expiration. Session attributes use Spring Session's
+default Java serialization to BYTEA; this is not credential encryption. Keep
+access to the session tables and database backups restricted. PostgreSQL session
+reads/writes add database load, and session access depends on database availability.
+
+The PostgreSQL-specific repository customizer uses Spring Session's upsert queries
+for concurrent attribute inserts. This change centralizes sessions; authentication
+rate limits remain per backend instance.
+
+`SessionPostgresTests` starts two real HTTP backends against an isolated PostgreSQL
+schema and checks shared login/CSRF, cookie flags, session ID rotation, restart,
+logout replay rejection, expiration/cleanup, and account access invalidation.
+Enable it with the existing [PostgreSQL test command](payload-content.md#database-upgrades-and-tests).
 
 ## External system credentials
 
@@ -144,4 +187,5 @@ for test groups and the limits of real database/SMTP coverage.
 
 References: [Spring Security form login](https://docs.spring.io/spring-security/reference/servlet/authentication/passwords/form.html)
 and [CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html).
+Session reference: [Spring Session JDBC](https://docs.spring.io/spring-session/reference/3.5/configuration/jdbc.html).
 Encryption reference: [Java 21 GCM parameters](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/javax/crypto/spec/GCMParameterSpec.html).

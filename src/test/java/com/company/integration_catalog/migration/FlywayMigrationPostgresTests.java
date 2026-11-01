@@ -66,6 +66,27 @@ class FlywayMigrationPostgresTests {
     }
 
     @Test
+    void upgradesVersionOneWithoutRecreatingExistingTables() throws Exception {
+        Flyway versionOne = Flyway.configure().configuration(flyway.getConfiguration()).target("1").load();
+        assertThat(versionOne.migrate().migrationsExecuted).isEqualTo(1);
+        try (var statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO " + schema
+                    + ".systems (name, description) VALUES ('Before upgrade', 'Retained by V2')");
+        }
+
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
+        try (var statement = connection.createStatement();
+             var result = statement.executeQuery("SELECT name FROM " + schema + ".systems")) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getString("name")).isEqualTo("Before upgrade");
+        }
+        try (var statement = connection.createStatement()) {
+            statement.executeQuery("SELECT * FROM " + schema + ".spring_session").close();
+            statement.executeQuery("SELECT * FROM " + schema + ".spring_session_attributes").close();
+        }
+    }
+
+    @Test
     void refusesAnUnmanagedNonemptySchemaInsteadOfSkippingTheInitialMigration() throws Exception {
         try (var statement = connection.createStatement()) {
             statement.execute("CREATE TABLE " + schema + ".legacy_table (id BIGINT PRIMARY KEY)");
