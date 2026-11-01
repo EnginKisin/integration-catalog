@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /workspace
 RUN apt-get update \
