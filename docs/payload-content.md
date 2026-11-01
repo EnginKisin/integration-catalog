@@ -302,9 +302,11 @@ and [response examples](error-catalog.json).
 
 ## Database upgrades and tests
 
-For new/empty databases, Hibernate `ddl-auto=update` creates payload columns from
-current entities. On existing databases, check format CHECK constraints separately;
-Hibernate may not add new values such as EXCEL to old constraints.
+Flyway's initial migration creates payload columns and format CHECK constraints
+for all current formats, including EXCEL. Hibernate uses `ddl-auto=validate`.
+Existing databases from the former Hibernate update setup must be reset for this
+transition; see [database migrations](database-migrations.md). Future format or
+column changes require a new migration, including any CHECK constraint updates.
 `schema_definition` remains NOT NULL; CSV/Excel store an empty object.
 
 Old records stored actual JSON objects even when the integration format was
@@ -322,7 +324,9 @@ user with access only to that database. The test password is
   -Dcatalog.payload.test-db-url=jdbc:postgresql://localhost:5432/integration_payload_test_20261025 test
 ```
 
-Tests create tables using the current Hibernate development settings. Payload
+Tests create tables using the application Flyway migrations and validate entity
+compatibility with Hibernate. `FlywayMigrationPostgresTests` also checks clean
+installation, migration replay prevention, and unmanaged schema rejection. Payload
 roundtrip transactions roll back. Flow cleanup tests use independent transactions
 to check commit/rollback and delete their own sample records afterward. AI database
 tests check persistent jobs, results, approval/idempotency, expiry, and cascade

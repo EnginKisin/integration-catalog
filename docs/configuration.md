@@ -106,12 +106,12 @@ An empty `GEMINI_API_KEY` means no key is used. `AiProperties` only binds and
 validates the values. Container defaults such as Ollama image/RAM/CPU stay in Compose.
 
 Spring settings can be overridden through the environment. For example,
-`SPRING_JPA_SHOW_SQL=false` disables SQL logging. `ddl-auto=update` manages the
-development schema; it is not a versioned production migration system. Prepare
-production schema changes separately and validate them on real PostgreSQL.
-New/empty databases get tables and columns from the current entities. Check
-existing format CHECK constraints separately. In particular, adding enum values
-such as EXCEL must not rely only on Hibernate update.
+`SPRING_JPA_SHOW_SQL=false` disables SQL logging. Flyway manages schema changes
+using versioned SQL files in `src/main/resources/db/migration`; Hibernate uses
+`ddl-auto=validate` to check entity compatibility after migrations. Start this
+transition with an empty database. Existing Hibernate-managed databases must be
+reset; see [database migrations](database-migrations.md) for local reset commands
+and the process for adding new migrations, including enum CHECK constraints.
 `CATALOG_CREDENTIALS_MIGRATE` encrypts old credential content only. It does not
 manage table or column migrations.
 

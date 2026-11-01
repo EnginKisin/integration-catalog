@@ -516,9 +516,9 @@ quota, or real model quality.
 `AiMappingPostgresTests` uses the same `-Dcatalog.payload.postgres-test=true` flag
 as the other optional PostgreSQL tests. Run it only on a separate test database.
 Normal tests use fake providers; CI does not download models or call cloud
-services. In local development, Hibernate `ddl-auto=update` creates AI tables and
-columns from entities. There is no versioned database migration system; start a
-new installation with an empty database.
+services. Flyway's initial migration creates AI tables, indexes, and cascade
+constraints; Hibernate validates the schema. Start this transition with an empty
+database and use [versioned migrations](database-migrations.md) for later changes.
 
 The live model smoke script accepts format options:
 

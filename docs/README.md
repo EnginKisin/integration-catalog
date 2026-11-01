@@ -8,6 +8,7 @@ Update the related documents whenever the code or API changes.
 | Guide | Content |
 |---|---|
 | [Configuration and operations](configuration.md) | Docker, environment changes, IDE setup, health, volumes, and troubleshooting |
+| [Database migrations](database-migrations.md) | Flyway startup, initial schema, local database reset, and adding migrations |
 | [Error contract and catalog](error-codes.md) | English error responses, code/endpoint index, field errors, request IDs, 429, and AI job errors |
 | [API reference](api-reference.md) | All controller endpoints, responses, enums, and validation rules |
 | [Frontend integration](frontend-integration.md) | Separate frontend/proxy, session/CSRF helper, screen workflows, and acceptance checks |
@@ -31,6 +32,7 @@ This repository does not include a frontend application.
 - Completion: `validation/IntegrationCompletionValidator.java`.
 - Business rules: `service/` and `service/impl/`; access control: `security/` and `config/`.
 - Runtime settings: `src/main/resources/application.properties`, `docker-compose.yml`, `.env.example`, `Dockerfile`.
+- Versioned schema changes: `src/main/resources/db/migration/`.
 - AI contract: `ai/AiMappingDtos.java`, `ai/AiMappingService.java`, and the provider adapters.
 
 IDs in examples are placeholders. Use IDs from your own API responses. Example

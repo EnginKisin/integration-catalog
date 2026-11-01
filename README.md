@@ -12,7 +12,7 @@ This repository contains the portal's REST API backend. The frontend is a separa
 project. The API manages integrations, environment settings, encrypted credentials,
 user invitations, and roles.
 
-**Technologies:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Data JPA · PostgreSQL
+**Technologies:** Java 21 · Spring Boot 3.5.16 · Spring Security · Spring Data JPA · PostgreSQL · Flyway
 
 ## Main workflows
 
@@ -74,6 +74,11 @@ curl -i http://localhost:8080/actuator/health/readiness
 
 The `mail` profile starts the Mailpit test inbox. It does not send email to real recipients.
 
+Flyway creates the schema on an empty database and applies new migrations on
+later starts; Hibernate validates entity compatibility. Existing databases from
+the former Hibernate `update` setup must be reset for this transition.
+See [database migrations and the local reset commands](docs/database-migrations.md).
+
 ### 3. Connect to the API
 
 These addresses use the default ports:
@@ -99,6 +104,7 @@ All guides are listed in the [documentation index](docs/README.md).
 | Endpoints and validation | [API reference](docs/api-reference.md) |
 | Error codes, field errors, and localization | [Error contract and catalog](docs/error-codes.md) |
 | Environment variables, IDE setup, troubleshooting | [Configuration](docs/configuration.md) |
+| Schema migrations, fresh setup, and database reset | [Database migrations](docs/database-migrations.md) |
 | Formats and file rules | [Payloads](docs/payload-content.md) |
 | Data model and production limits | [Architecture](docs/architecture.md) |
 

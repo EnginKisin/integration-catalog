@@ -76,7 +76,8 @@ validate local source files. Check remote Actions results separately.
 - Sessions and authentication rate limits are held in instance memory. Shared
   session storage and distributed rate limits are not configured.
 - Catalog/integration lists have no pagination. Performance with large data needs testing.
-- The project uses `ddl-auto=update`. Versioned Flyway/Liquibase migrations are not in place.
+- Flyway manages versioned schema changes; Hibernate uses `ddl-auto=validate`.
+  The initial migration requires an empty database; see [database migrations](database-migrations.md).
 - API errors use a shared English response format with coded field `violations`.
   Actuator health responses keep their own format. The [error contract](error-codes.md)
   and catalog support frontend localization.
@@ -94,6 +95,7 @@ validate local source files. Check remote Actions results separately.
 
 | Group | What it checks |
 |---|---|
+| FlywayMigrationPostgresTests (opt-in) | Fresh schema, history validation, no migration replay, and rejection of an unmanaged nonempty schema |
 | IntegrationServiceImpl / MappingServiceImpl tests | Updates, schema ownership, and full-list saves |
 | PayloadSchemas / PayloadWeb tests | XML/IDOC field trees, CSV/Excel files, size/format/access checks, and mapping restrictions |
 | PayloadPostgresTests (opt-in) | Real PostgreSQL JSONB/TEXT/BYTEA save/read and create/update behavior; [run instructions](payload-content.md#database-upgrades-and-tests) |

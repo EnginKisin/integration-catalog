@@ -16,7 +16,7 @@ If it is empty, these values create an ADMIN. Startup stops if the values are
 missing or invalid. If any user exists, no new admin is created and the current
 password stays the same. You can remove bootstrap variables after setup, but must
 provide them again after resetting the database. Empty databases get their tables
-through `ddl-auto=update`.
+through Flyway's [initial schema migration](database-migrations.md).
 
 ## Roles
 
