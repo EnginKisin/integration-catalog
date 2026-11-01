@@ -128,4 +128,8 @@ and builds a JAR. [Dependabot](.github/dependabot.yml) checks dependencies weekl
 ## Development status
 
 The project is at the MVP/pilot stage. [Production acceptance](docs/architecture.md#release-and-production-limits)
-is not complete. A license has not been selected yet.
+is not complete.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
