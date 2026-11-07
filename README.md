@@ -43,36 +43,145 @@ Setup and API: [AI mapping assistant](docs/ai-mapping.md). Suggestions are saved
 
 ## Getting started
 
-Docker and Docker Compose are required. For local development and tests, use JDK 21
-and the Maven Wrapper included in this repository.
+For the Docker setup below, install Git and Docker with the Compose v2 plugin
+(`docker compose`). Make sure Docker is running. Java, Maven, and PostgreSQL run
+inside containers; you do not need to install them on your computer.
 
-### 1. Prepare the environment file
+The commands use a Unix-style shell, such as the macOS/Linux terminal or Git Bash/WSL
+on Windows. You also need OpenSSL to generate the encryption key and curl for the
+health check. The login example below uses Postman.
+
+To run the backend from an IDE or run tests locally, install **JDK 21** and use the
+included Maven Wrapper; a separate Maven installation is not required. See
+[running from an IDE](docs/configuration.md#running-from-an-ide).
+
+### 1. Clone the repository
+
+```sh
+git clone https://github.com/EnginKisin/integration-catalog.git
+cd integration-catalog
+```
+
+Run all commands below from this repository directory.
+
+### 2. Prepare the environment file
+
+For a fresh setup, create `.env` from the template. If `.env` already exists, edit
+it instead of overwriting it.
 
 ```sh
 cp .env.example .env
 ```
 
-Set these values in `.env`:
+Open `.env` in a text editor and fill in these values:
 
 | Variable | Value |
 |---|---|
 | `POSTGRES_PASSWORD` | Database password |
 | `CATALOG_ADMIN_USERNAME` | First admin username; the example uses `admin` |
 | `CATALOG_ADMIN_PASSWORD` | First admin password; 12–128 characters |
-| `CATALOG_CREDENTIALS_KEY` | Generate once with `openssl rand -base64 32` |
+| `CATALOG_CREDENTIALS_KEY` | Paste the output of the command below |
 
-Keep the encryption key safe. For an existing database, keep its current password
-and key. IDEs and Maven do not load `.env` automatically.
+Generate the encryption key once:
 
-### 2. Start the services
+```sh
+openssl rand -base64 32
+```
+
+Copy the generated value after `CATALOG_CREDENTIALS_KEY=` in `.env` and save the file.
+Keep the remaining defaults for this local setup; AI is disabled and no AI model or
+API key is needed. Compose reads `.env` automatically; IDEs and Maven do not.
+
+Keep the encryption key safe and reuse it on later starts. If you already have a
+`.env` or database, keep the existing database password and key instead of
+overwriting them. Use an empty database for a fresh installation; for an older
+Hibernate-managed database, read the [migration guide](docs/database-migrations.md)
+before starting.
+
+### 3. Start the services
 
 ```sh
 docker compose --profile mail up --build -d --wait --wait-timeout 180
 docker compose ps
+```
+
+This builds the backend and starts PostgreSQL and the Mailpit test inbox. The first
+build downloads images and Maven dependencies, so it can take several minutes.
+The database schema and first admin account are created automatically.
+Mailpit captures local emails; it does not send them to real recipients.
+
+### 4. Verify that the backend is ready
+
+```sh
 curl -i http://localhost:8080/actuator/health/readiness
 ```
 
-The `mail` profile starts the Mailpit test inbox. It does not send email to real recipients.
+Expect **HTTP 200** and this response body:
+
+```json
+{"status":"UP"}
+```
+
+No login is needed for this check. If it fails, use the
+[quick troubleshooting steps](#quick-troubleshooting) below.
+
+### 5. Log in and make your first API request
+
+You can test the backend with Postman without a frontend. Keep Postman's cookie
+jar enabled and use `localhost` for every request so the session cookie is reused.
+
+1. Send `GET http://localhost:8080/api/v1/auth/csrf`. From the JSON response, copy
+   `headerName` and `token`.
+2. Send `POST http://localhost:8080/api/v1/auth/login`. In **Headers**, add a header
+   whose name is the returned `headerName` and whose value is the returned `token`.
+   In **Body → x-www-form-urlencoded**, add `username` and `password` using the
+   `CATALOG_ADMIN_USERNAME` and `CATALOG_ADMIN_PASSWORD` values you saved in `.env`.
+   Expect **HTTP 200 with an empty body**. Postman keeps the updated session cookie.
+3. Send `GET http://localhost:8080/api/v1/auth/csrf` again. Login changes the session;
+   use this new token in the returned header on later POST/PUT/PATCH/DELETE requests.
+4. Send `GET http://localhost:8080/api/v1/auth/me`. Expect **HTTP 200** with your
+   username and `ROLE_ADMIN` in `authorities`. This confirms authenticated API access.
+
+The admin credentials are used to create the first account only. Editing them in
+`.env` later does not change an existing account's password.
+For a frontend client example, see [sessions and CSRF](docs/frontend-integration.md#sessions-and-csrf).
+
+### Local service addresses
+
+These addresses use the default ports:
+
+| Address | Purpose |
+|---|---|
+| `http://localhost:8080/api/v1` | Base URL; append an endpoint such as `/auth/me` |
+| `http://localhost:8080/swagger-ui/index.html` | Swagger; requires an ADMIN session |
+| `http://localhost:8080/v3/api-docs` | OpenAPI JSON; requires an ADMIN session |
+| `http://localhost:8080/actuator/health/readiness` | Health check; no login required |
+| `http://localhost:8025` | Mailpit test inbox |
+
+Postman's login session is separate from your browser's session. To open Swagger
+in a browser, log in through the frontend in that browser using the same hostname;
+see [first session and Swagger](docs/frontend-integration.md#first-session-and-swagger).
+
+### Quick troubleshooting
+
+| Problem | What to do |
+|---|---|
+| Docker connection error | Start Docker and check `docker compose version`. |
+| Port already in use | Change `APP_PORT` or `POSTGRES_PORT` in `.env`, then rerun the start command. If `APP_PORT` changes, use that port in the API URLs above. |
+| Startup fails or the app is unhealthy | Run `docker compose ps` and `docker compose logs --tail=100 app`. Check the database password, encryption key, and first admin settings. |
+| Login returns 403 | Get a CSRF token again and send it in the returned header; keep cookies enabled and use the same hostname. |
+| Login returns 401 | Check the stored account's username and password. Changing bootstrap values in `.env` does not reset an existing password. |
+
+To stop the services while keeping your database:
+
+```sh
+docker compose down
+```
+
+Do not add `-v` for a normal shutdown; it deletes the Compose volumes, including
+database data. More help: [configuration and troubleshooting](docs/configuration.md#troubleshooting).
+
+### Database and session details
 
 Flyway creates the schema on an empty database and applies new migrations on
 later starts; Hibernate validates entity compatibility. Existing databases from
@@ -83,21 +192,6 @@ Sessions are stored in PostgreSQL through Spring Session JDBC. No extra service
 is required. Compatible backend instances using the same database/schema share
 sessions; unexpired sessions also survive a backend restart. The existing
 `JSESSIONID` cookie and login/CSRF API remain unchanged. See [session storage](docs/authentication.md#shared-jdbc-sessions).
-
-### 3. Connect to the API
-
-These addresses use the default ports:
-
-| Address | Purpose |
-|---|---|
-| `http://localhost:8080/api/v1` | API root; session and role checks apply |
-| `http://localhost:8080/swagger-ui/index.html` | Swagger; requires an ADMIN session |
-| `http://localhost:8080/v3/api-docs` | OpenAPI JSON; requires an ADMIN session |
-| `http://localhost:8080/actuator/health/readiness` | Health check; no login required |
-| `http://localhost:8025` | Mailpit test inbox |
-
-Login: **get CSRF → submit form login → refresh CSRF**. Keep the session cookie.
-[Runnable client example](docs/frontend-integration.md#sessions-and-csrf).
 
 ## Documentation
 
